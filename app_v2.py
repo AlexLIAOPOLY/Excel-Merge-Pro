@@ -6,13 +6,13 @@ import pandas as pd
 from datetime import datetime
 from models.database import db, TableData, TableSchema, UploadHistory
 from models.excel_processor import UniversalExcelProcessor
+from config import config
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'universal-table-merger-2025'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///universal_table_processor.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32MB
+
+# 根据环境变量选择配置
+config_name = os.environ.get('FLASK_ENV', 'default')
+app.config.from_object(config[config_name])
 
 CORS(app)
 db.init_app(app)
@@ -295,6 +295,107 @@ def export_data():
         traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)})
 
+def apply_enhanced_excel_styling(ws, num_columns, num_rows):
+    """应用增强的Excel样式，使其与网页格式保持一致"""
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side, NamedStyle
+    from openpyxl.utils import get_column_letter
+    
+    # 定义专业的样式（突出的标题栏高亮效果）
+    header_font = Font(bold=True, color="ffffff", name="Microsoft YaHei", size=13)  # 白色字体更醒目
+    header_fill = PatternFill(start_color="4f46e5", end_color="3730a3", fill_type="solid")  # 深蓝色渐变背景
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    
+    data_font = Font(color="374151", name="Microsoft YaHei", size=11)
+    data_alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    
+    # 数值类型数据的对齐方式
+    number_alignment = Alignment(horizontal="right", vertical="center", wrap_text=False)
+    
+    # 精美的边框样式
+    thin_border = Border(
+        left=Side(border_style="thin", color="d1d5db"),
+        right=Side(border_style="thin", color="d1d5db"),
+        top=Side(border_style="thin", color="d1d5db"),
+        bottom=Side(border_style="thin", color="d1d5db")
+    )
+    
+    header_border = Border(
+        left=Side(border_style="medium", color="1e293b"),
+        right=Side(border_style="medium", color="1e293b"),
+        top=Side(border_style="thick", color="1e293b"),
+        bottom=Side(border_style="thick", color="1e293b")
+    )
+    
+    # 应用表头样式
+    for col in range(1, num_columns + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = header_border
+    
+    # 应用数据行样式
+    for row in range(2, num_rows + 2):  # +2 because we have header + data rows
+        for col in range(1, num_columns + 1):
+            cell = ws.cell(row=row, column=col)
+            cell.font = data_font
+            
+            # 智能判断数据类型并应用对应的对齐方式
+            cell_value = str(cell.value) if cell.value else ""
+            if cell_value and (cell_value.replace('.','').replace('-','').replace('+','').isdigit() or 
+                             any(char in cell_value for char in ['¥', '$', '元', '%'])):
+                cell.alignment = number_alignment
+            else:
+                cell.alignment = data_alignment
+            
+            cell.border = thin_border
+            
+            # 更精致的交替行背景色
+            if row % 2 == 0:
+                cell.fill = PatternFill(start_color="f8fafc", end_color="f8fafc", fill_type="solid")
+            else:
+                cell.fill = PatternFill(start_color="ffffff", end_color="ffffff", fill_type="solid")
+    
+    # 智能调整列宽（优化算法）
+    for col in range(1, num_columns + 1):
+        column_letter = get_column_letter(col)
+        max_length = 0
+        
+        # 计算列的最大内容长度，优化中文字符处理
+        for row in range(1, num_rows + 2):
+            cell = ws.cell(row=row, column=col)
+            if cell.value:
+                cell_str = str(cell.value)
+                # 更精确的中文字符宽度计算
+                ascii_count = sum(1 for c in cell_str if ord(c) < 128)
+                chinese_count = sum(1 for c in cell_str if ord(c) >= 128)
+                adjusted_length = ascii_count + chinese_count * 1.8  # 中文字符宽度系数
+                max_length = max(max_length, adjusted_length)
+        
+        # 设置列宽，考虑表头加粗效果和内容类型
+        header_cell = ws.cell(row=1, column=col)
+        header_length = len(str(header_cell.value)) * 1.2 if header_cell.value else 0  # 加粗字体稍宽
+        
+        final_width = max(10, min(max(max_length + 4, header_length + 2), 60))  # 改进的宽度计算
+        ws.column_dimensions[column_letter].width = final_width
+    
+    # 设置更合适的行高（突出标题栏）
+    ws.row_dimensions[1].height = 45  # 表头行高（更高更醒目）
+    for row in range(2, num_rows + 2):
+        ws.row_dimensions[row].height = 28  # 数据行高（稍高一些）
+    
+    # 冻结首行（便于浏览大量数据）
+    ws.freeze_panes = "A2"
+    
+    # 优化打印和显示设置
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = False
+    ws.page_setup.orientation = 'landscape'  # 横向打印
+    ws.page_margins.left = 0.5
+    ws.page_margins.right = 0.5
+    ws.page_margins.top = 0.75
+    ws.page_margins.bottom = 0.75
+
 @app.route('/export-all-groups')
 def export_all_groups():
     """导出所有表格分组，每个分组一个工作表"""
@@ -311,7 +412,7 @@ def export_all_groups():
         
         # 创建工作簿
         from openpyxl import Workbook
-        from openpyxl.styles import Font, Alignment, PatternFill
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
         from openpyxl.utils.dataframe import dataframe_to_rows
         
         wb = Workbook()
@@ -378,28 +479,8 @@ def export_all_groups():
             for r in dataframe_to_rows(df, index=False, header=True):
                 ws.append(r)
             
-            # 设置表头样式
-            header_font = Font(bold=True, color="FFFFFF")
-            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-            header_alignment = Alignment(horizontal="center", vertical="center")
-            
-            for cell in ws[1]:
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = header_alignment
-            
-            # 自动调整列宽
-            for column in ws.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = min(max_length + 2, 50)
-                ws.column_dimensions[column_letter].width = adjusted_width
+            # 增强的样式设置
+            apply_enhanced_excel_styling(ws, len(business_columns), len(rows))
             
             total_exported_records += len(rows)
             exported_groups += 1
@@ -408,8 +489,13 @@ def export_all_groups():
         if exported_groups == 0:
             return jsonify({'success': False, 'message': '没有有效数据可导出'})
         
-        # 生成导出文件
-        export_filename = f'所有表格_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        # 生成有规律的导出文件名
+        current_time = datetime.now()
+        date_str = current_time.strftime("%Y%m%d")
+        time_str = current_time.strftime("%H%M%S")
+        
+        # 构建更有意义的文件名：分组数量+记录数量+时间戳
+        export_filename = f'表格数据汇总_{exported_groups}组_{total_exported_records}条_{date_str}_{time_str}.xlsx'
         export_path = os.path.join('static/uploads', export_filename)
         
         # 确保导出目录存在
@@ -540,7 +626,7 @@ def get_table_groups():
             group_dict = group.to_dict()
             
             # 获取列映射信息
-            from models.database_v2 import ColumnMapping
+            from models.database import ColumnMapping
             mappings = ColumnMapping.query.filter_by(table_group_id=group.id).all()
             group_dict['has_mappings'] = len(mappings) > 0
             group_dict['mapping_count'] = len(mappings)
@@ -655,6 +741,8 @@ def confirm_column_mapping():
 @app.route('/table-groups/rename', methods=['POST'])
 def rename_table_group():
     try:
+        from models.database import TableGroup
+        
         data = request.get_json()
         group_id = data.get('group_id')
         new_name = data.get('new_name', '').strip()
@@ -725,7 +813,8 @@ def clear_all_data():
         print(f"[错误] 清空数据时出错: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
-if __name__ == '__main__':
+def create_app():
+    """应用程序工厂函数"""
     with app.app_context():
         # 创建数据库表
         db.create_all()
@@ -736,5 +825,14 @@ if __name__ == '__main__':
             os.makedirs(app.config['UPLOAD_FOLDER'])
             print("[系统] 上传目录创建完成")
     
-    print("[系统] 启动通用表格合并系统...")
-    app.run(debug=True, host='0.0.0.0', port=5002)
+    return app
+
+if __name__ == '__main__':
+    app = create_app()
+    # 本地开发环境
+    port = int(os.environ.get('PORT', 5002))
+    print(f"[系统] 启动通用表格合并系统... 端口: {port}")
+    app.run(debug=os.environ.get('FLASK_ENV') != 'production', host='0.0.0.0', port=port)
+else:
+    # 生产环境 (Render/Gunicorn)
+    app = create_app()

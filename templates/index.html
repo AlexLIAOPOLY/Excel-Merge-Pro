@@ -1206,142 +1206,9 @@
             gap: 4px;
         }
 
-        /* Excel风格的筛选下拉按钮 */
-        .filter-dropdown {
-            position: relative;
-            display: inline-block;
-        }
 
-        .filter-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 2px 4px;
-            border-radius: 3px;
-            font-size: 10px;
-            color: #666;
-            transition: all 0.2s;
-            opacity: 0;
-        }
 
-        th:hover .filter-btn {
-            opacity: 1;
-        }
 
-        .filter-btn:hover {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-
-        .filter-dropdown-content {
-            display: none;
-            position: absolute;
-            right: 0;
-            top: 100%;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 1000;
-            min-width: 200px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .filter-dropdown-content.show {
-            display: block;
-        }
-
-        .filter-search {
-            width: 100%;
-            padding: 8px 12px;
-            border: none;
-            border-bottom: 1px solid #eee;
-            font-size: 12px;
-            outline: none;
-        }
-
-        .filter-options {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .filter-option {
-            display: flex;
-            align-items: center;
-            padding: 6px 12px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: background 0.2s;
-        }
-
-        .filter-option:hover {
-            background: #f5f5f5;
-        }
-
-        .filter-option input[type="checkbox"] {
-            margin-right: 8px;
-            transform: scale(0.9);
-        }
-
-        .filter-actions {
-            padding: 8px 12px;
-            border-top: 1px solid #eee;
-            display: flex;
-            gap: 8px;
-        }
-
-        .filter-actions button {
-            padding: 4px 12px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            font-size: 11px;
-            cursor: pointer;
-            background: white;
-            transition: all 0.2s;
-        }
-
-        .filter-actions button:hover {
-            background: #f0f0f0;
-        }
-
-        .filter-actions .btn-primary {
-            background: #1976d2;
-            color: white;
-            border-color: #1976d2;
-        }
-
-        .filter-actions .btn-primary:hover {
-            background: #1565c0;
-        }
-
-        /* 冻结首列的样式 */
-        .table-wrapper.freeze-first-col th:first-child,
-        .table-wrapper.freeze-first-col td:first-child {
-            position: sticky;
-            left: 0;
-            z-index: 20;
-            background: white;
-            border-right: 2px solid #e5e7eb;
-        }
-
-        /* 冻结首列的表头需要更高的z-index */
-        .table-wrapper.freeze-first-col th:first-child {
-            z-index: 120;
-            background: linear-gradient(135deg, #f9fafb 0%, #f1f3f5 100%);
-        }
-
-        /* 冻结状态指示器 */
-        .freeze-indicator {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            width: 6px;
-            height: 6px;
-            background: #10b981;
-            border-radius: 50%;
-            opacity: 0.7;
-        }
 
         th:hover .column-actions {
             opacity: 1;
@@ -1691,10 +1558,7 @@
                             <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
                         </div>
                         <div class="toolbar-right">
-                            <div class="freeze-controls" style="display: flex; gap: 8px; align-items: center; margin-right: 12px;">
-                                <label style="font-size: 12px; color: #666;">冻结：</label>
-                                <button class="btn btn-secondary" onclick="toggleFreezeFirstColumn()" id="freezeFirstColBtn" style="padding: 6px 12px; font-size: 12px;">冻结首列</button>
-                            </div>
+
                             <button class="btn btn-secondary" onclick="refreshData()">刷新</button>
                             <button class="btn btn-secondary" style="background: #ef4444; color: white;" onclick="clearAllData()">清空所有数据</button>
                             

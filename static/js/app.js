@@ -4,9 +4,7 @@ let filteredData = [];
 let currentSchema = [];
 let tableGroups = [];
 let currentGroupId = null;
-let columnFilters = {}; // 存储列筛选条件
-let activeColumnFilter = null; // 当前活动的筛选下拉框
-let isFirstColumnFrozen = false; // 首列冻结状态
+
 
 // 控制台日志函数
 function addConsoleLog(message, type = 'system') {
@@ -526,19 +524,6 @@ function renderTable() {
             <div class="table-header-actions">
                 <span class="column-title" ondblclick="showRenameColumnModal('${col}')" title="双击重命名列">${col}</span>
                 <div class="column-actions">
-                    <div class="filter-dropdown">
-                        <button class="filter-btn" onclick="toggleColumnFilter('${col}', ${index})" title="筛选">▼</button>
-                        <div class="filter-dropdown-content" id="filter-${index}">
-                            <input type="text" class="filter-search" placeholder="搜索..." onkeyup="filterColumnOptions('${col}', ${index}, this.value)">
-                            <div class="filter-options" id="filter-options-${index}"></div>
-                            <div class="filter-actions">
-                                <button onclick="selectAllColumnFilter(${index})">全选</button>
-                                <button onclick="clearAllColumnFilter(${index})">清除</button>
-                                <button class="btn-primary" onclick="applyColumnFilter('${col}', ${index})">确定</button>
-                                <button onclick="closeColumnFilter(${index})">取消</button>
-                            </div>
-                        </div>
-                    </div>
                     <button class="column-btn" onclick="sortColumn('${col}', 'asc')" title="升序排序">↑</button>
                     <button class="column-btn" onclick="sortColumn('${col}', 'desc')" title="降序排序">↓</button>
                     <button class="column-btn column-delete-btn" onclick="deleteColumnConfirm('${col}')" title="删除此列">×</button>
@@ -613,6 +598,9 @@ function renderTable() {
     
     // 确保表头固定功能正常工作
     ensureHeaderSticky();
+    
+    // 添加表格独立滚动功能
+    addTableScrollControl();
 }
 
 // 添加编辑功能
@@ -1101,7 +1089,14 @@ async function exportData() {
             
             // 从响应头获取文件名，如果没有则使用默认名称
             const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = `数据表格_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`;
+            // 生成更有规律的文件名
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0,10).replace(/-/g, '');
+            const timeStr = now.toTimeString().slice(0,8).replace(/:/g, '');
+            const groupName = currentGroupId ? 
+                document.querySelector('#groupSelect option:checked')?.textContent?.trim() || `表格组${currentGroupId}` : 
+                '当前表格';
+            let filename = `${groupName}_${dateStr}_${timeStr}.xlsx`;
             
             if (contentDisposition) {
                 const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
@@ -1803,176 +1798,6 @@ function refreshData() {
     loadTableList();
 }
 
-// ====== Excel风格的筛选和排序功能 ======
-
-// 切换列筛选下拉框
-function toggleColumnFilter(columnName, columnIndex) {
-    // 关闭其他打开的筛选框
-    if (activeColumnFilter !== null && activeColumnFilter !== columnIndex) {
-        closeColumnFilter(activeColumnFilter);
-    }
-    
-    const dropdown = document.getElementById(`filter-${columnIndex}`);
-    const isShown = dropdown.classList.contains('show');
-    
-    if (isShown) {
-        closeColumnFilter(columnIndex);
-    } else {
-        // 填充筛选选项
-        populateColumnFilterOptions(columnName, columnIndex);
-        dropdown.classList.add('show');
-        activeColumnFilter = columnIndex;
-        
-        // 点击外部关闭筛选框
-        setTimeout(() => {
-            document.addEventListener('click', handleOutsideClick);
-        }, 0);
-    }
-}
-
-// 填充列筛选选项
-function populateColumnFilterOptions(columnName, columnIndex) {
-    const optionsContainer = document.getElementById(`filter-options-${columnIndex}`);
-    
-    // 获取该列的所有唯一值
-    const uniqueValues = [...new Set(currentData.map(row => {
-        const value = row[columnName];
-        return value == null ? '(空白)' : String(value);
-    }))].sort();
-    
-    // 获取当前的筛选状态
-    const currentFilters = columnFilters[columnName] || new Set(uniqueValues);
-    
-    optionsContainer.innerHTML = '';
-    
-    uniqueValues.forEach(value => {
-        const option = document.createElement('div');
-        option.className = 'filter-option';
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = currentFilters.has(value);
-        checkbox.value = value;
-        checkbox.addEventListener('change', function() {
-            if (!columnFilters[columnName]) {
-                columnFilters[columnName] = new Set();
-            }
-            
-            if (this.checked) {
-                columnFilters[columnName].add(value);
-            } else {
-                columnFilters[columnName].delete(value);
-            }
-        });
-        
-        const label = document.createElement('span');
-        label.textContent = value;
-        
-        option.appendChild(checkbox);
-        option.appendChild(label);
-        optionsContainer.appendChild(option);
-    });
-}
-
-// 筛选列选项搜索
-function filterColumnOptions(columnName, columnIndex, searchValue) {
-    const optionsContainer = document.getElementById(`filter-options-${columnIndex}`);
-    const options = optionsContainer.querySelectorAll('.filter-option');
-    
-    options.forEach(option => {
-        const text = option.querySelector('span').textContent.toLowerCase();
-        if (text.includes(searchValue.toLowerCase())) {
-            option.style.display = 'flex';
-        } else {
-            option.style.display = 'none';
-        }
-    });
-}
-
-// 全选列筛选
-function selectAllColumnFilter(columnIndex) {
-    const optionsContainer = document.getElementById(`filter-options-${columnIndex}`);
-    const checkboxes = optionsContainer.querySelectorAll('input[type="checkbox"]');
-    
-    checkboxes.forEach(checkbox => {
-        if (checkbox.parentElement.style.display !== 'none') {
-            checkbox.checked = true;
-            checkbox.dispatchEvent(new Event('change'));
-        }
-    });
-}
-
-// 清除列筛选
-function clearAllColumnFilter(columnIndex) {
-    const optionsContainer = document.getElementById(`filter-options-${columnIndex}`);
-    const checkboxes = optionsContainer.querySelectorAll('input[type="checkbox"]');
-    
-    checkboxes.forEach(checkbox => {
-        if (checkbox.parentElement.style.display !== 'none') {
-            checkbox.checked = false;
-            checkbox.dispatchEvent(new Event('change'));
-        }
-    });
-}
-
-// 应用列筛选
-function applyColumnFilter(columnName, columnIndex) {
-    // 应用所有列的筛选条件
-    applyAllFilters();
-    closeColumnFilter(columnIndex);
-    addConsoleLog(`应用列"${columnName}"的筛选条件`, 'system');
-}
-
-// 关闭列筛选
-function closeColumnFilter(columnIndex) {
-    const dropdown = document.getElementById(`filter-${columnIndex}`);
-    if (dropdown) {
-        dropdown.classList.remove('show');
-    }
-    
-    if (activeColumnFilter === columnIndex) {
-        activeColumnFilter = null;
-    }
-    
-    document.removeEventListener('click', handleOutsideClick);
-}
-
-// 处理点击外部关闭筛选框
-function handleOutsideClick(event) {
-    if (activeColumnFilter === null) return;
-    
-    const dropdown = document.getElementById(`filter-${activeColumnFilter}`);
-    if (dropdown && !dropdown.contains(event.target) && !event.target.closest('.filter-btn')) {
-        closeColumnFilter(activeColumnFilter);
-    }
-}
-
-// 应用所有筛选条件
-function applyAllFilters() {
-    let filtered = [...currentData];
-    
-    // 应用列筛选
-    for (const [columnName, filterValues] of Object.entries(columnFilters)) {
-        if (filterValues.size === 0) continue;
-        
-        filtered = filtered.filter(row => {
-            const value = row[columnName];
-            const displayValue = value == null ? '(空白)' : String(value);
-            return filterValues.has(displayValue);
-        });
-    }
-    
-    // 应用搜索筛选（如果有搜索条件）
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
-    if (searchTerm) {
-        filtered = filtered.filter(row => searchInRow(row, searchTerm));
-    }
-    
-    filteredData = filtered;
-    renderTable();
-    highlightSearchResults(searchTerm);
-}
-
 // 列排序功能
 function sortColumn(columnName, direction) {
     addConsoleLog(`对列"${columnName}"进行${direction === 'asc' ? '升序' : '降序'}排序`, 'system');
@@ -2008,33 +1833,7 @@ function sortColumn(columnName, direction) {
     renderTable();
 }
 
-// ====== 冻结功能 ======
 
-// 切换冻结首列
-function toggleFreezeFirstColumn() {
-    const tableWrapper = document.querySelector('.table-wrapper');
-    const freezeBtn = document.getElementById('freezeFirstColBtn');
-    
-    if (!tableWrapper) return;
-    
-    if (isFirstColumnFrozen) {
-        // 取消冻结
-        tableWrapper.classList.remove('freeze-first-col');
-        freezeBtn.textContent = '冻结首列';
-        freezeBtn.style.background = '';
-        freezeBtn.style.color = '';
-        isFirstColumnFrozen = false;
-        addConsoleLog('已取消冻结首列', 'system');
-    } else {
-        // 启用冻结
-        tableWrapper.classList.add('freeze-first-col');
-        freezeBtn.textContent = '取消冻结';
-        freezeBtn.style.background = '#10b981';
-        freezeBtn.style.color = 'white';
-        isFirstColumnFrozen = true;
-        addConsoleLog('已冻结首列', 'system');
-    }
-}
 
 // ====== 数据验证和格式化 ======
 
@@ -2142,4 +1941,204 @@ function addValidationIndicator(cell, isValid, message = '') {
         cell.style.position = 'relative';
         cell.appendChild(indicator);
     }
+}
+
+// 添加表格独立滚动控制功能
+function addTableScrollControl() {
+    const tableWrapper = document.querySelector('.table-wrapper');
+    if (!tableWrapper) return;
+    
+    // 增强的滚动控制（优化Mac触摸板支持）
+    tableWrapper.addEventListener('wheel', function(e) {
+        e.stopPropagation(); // 阻止事件冒泡到页面
+        
+        const scrollTop = this.scrollTop;
+        const scrollLeft = this.scrollLeft;
+        const scrollHeight = this.scrollHeight;
+        const scrollWidth = this.scrollWidth;
+        const clientHeight = this.clientHeight;
+        const clientWidth = this.clientWidth;
+        let deltaY = e.deltaY;
+        let deltaX = e.deltaX;
+        
+        // Mac触摸板优化：增强水平滚动检测
+        const isMacTouchpad = /Mac|iOS/.test(navigator.platform) && Math.abs(e.deltaY) > 0 && Math.abs(e.deltaX) > 0.1;
+        
+        // 处理Shift+滚轮的水平滚动（鼠标滚轮用户）
+        if (e.shiftKey && Math.abs(deltaY) > 0) {
+            deltaX = deltaY; // 将垂直滚动转换为水平滚动
+            deltaY = 0;      // 取消垂直滚动
+        }
+        
+        // Mac触摸板特殊处理：降低水平滚动阈值，增加敏感度
+        if (isMacTouchpad && Math.abs(deltaX) > 0.1) {
+            deltaX = deltaX * 1.5; // 增加触摸板水平滚动的敏感度
+        }
+        
+        // 检查垂直滚动边界
+        const atTop = scrollTop <= 1;
+        const atBottom = Math.abs(scrollTop + clientHeight - scrollHeight) <= 1;
+        
+        // 检查水平滚动边界
+        const atLeft = scrollLeft <= 1;
+        const atRight = Math.abs(scrollLeft + clientWidth - scrollWidth) <= 1;
+        
+        let shouldPreventDefault = false;
+        let scrolled = false;
+        
+        // 处理垂直滚动
+        if (Math.abs(deltaY) > 0.1) {
+            if (!(atTop && deltaY < 0) && !(atBottom && deltaY > 0)) {
+                // 在边界内，允许表格滚动
+                const newScrollTop = Math.max(0, Math.min(this.scrollTop + deltaY, scrollHeight - clientHeight));
+                this.scrollTop = newScrollTop;
+                shouldPreventDefault = true;
+                scrolled = true;
+            }
+        }
+        
+        // 处理水平滚动（降低阈值以支持触摸板）
+        if (Math.abs(deltaX) > 0.1) {
+            if (!(atLeft && deltaX < 0) && !(atRight && deltaX > 0)) {
+                // 在边界内，允许表格滚动
+                const newScrollLeft = Math.max(0, Math.min(this.scrollLeft + deltaX, scrollWidth - clientWidth));
+                this.scrollLeft = newScrollLeft;
+                shouldPreventDefault = true;
+                scrolled = true;
+                
+                // 水平滚动专用反馈
+                console.log(`水平滚动: deltaX=${deltaX.toFixed(2)}, scrollLeft=${newScrollLeft}`);
+            }
+        }
+        
+        // 如果处理了任一方向的滚动，阻止默认行为
+        if (shouldPreventDefault) {
+            e.preventDefault();
+        }
+        
+        // 添加滚动反馈
+        if (scrolled) {
+            // 短暂改变边框颜色提供视觉反馈
+            const originalBoxShadow = this.style.boxShadow;
+            this.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.3)';
+            setTimeout(() => {
+                this.style.boxShadow = originalBoxShadow;
+            }, 150);
+        }
+    }, { passive: false });
+    
+    // 鼠标进入表格区域时添加视觉提示
+    tableWrapper.addEventListener('mouseenter', function() {
+        this.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+        document.body.style.overflow = 'hidden'; // 临时禁用页面滚动
+    });
+    
+    // 鼠标离开表格区域时移除视觉提示
+    tableWrapper.addEventListener('mouseleave', function() {
+        this.style.boxShadow = '';
+        document.body.style.overflow = ''; // 恢复页面滚动
+    });
+    
+    // 添加键盘滚动支持（当表格获得焦点时）
+    tableWrapper.addEventListener('keydown', function(e) {
+        const scrollAmount = 50;
+        const horizontalScrollAmount = 100;
+        
+        switch(e.key) {
+            case 'ArrowUp':
+                e.preventDefault();
+                this.scrollTop -= scrollAmount;
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                this.scrollTop += scrollAmount;
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                this.scrollLeft -= horizontalScrollAmount;
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                this.scrollLeft += horizontalScrollAmount;
+                break;
+            case 'PageUp':
+                e.preventDefault();
+                this.scrollTop -= this.clientHeight;
+                break;
+            case 'PageDown':
+                e.preventDefault();
+                this.scrollTop += this.clientHeight;
+                break;
+            case 'Home':
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    this.scrollTop = 0;
+                    this.scrollLeft = 0;  // 同时回到左上角
+                } else {
+                    e.preventDefault();
+                    this.scrollLeft = 0;  // 只回到行首
+                }
+                break;
+            case 'End':
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    this.scrollTop = this.scrollHeight;
+                    this.scrollLeft = this.scrollWidth;  // 同时到右下角
+                } else {
+                    e.preventDefault();
+                    this.scrollLeft = this.scrollWidth;  // 只到行尾
+                }
+                break;
+        }
+    });
+    
+    // 使表格容器可获得焦点
+    tableWrapper.setAttribute('tabindex', '0');
+    tableWrapper.style.outline = 'none';
+    
+    // 添加触摸屏和触摸板滑动支持
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartScrollLeft = 0;
+    let touchStartScrollTop = 0;
+    
+    tableWrapper.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            touchStartScrollLeft = this.scrollLeft;
+            touchStartScrollTop = this.scrollTop;
+        }
+    }, { passive: true });
+    
+    tableWrapper.addEventListener('touchmove', function(e) {
+        if (e.touches.length === 1) {
+            e.preventDefault(); // 阻止页面滚动
+            e.stopPropagation();
+            
+            const touch = e.touches[0];
+            const deltaX = touchStartX - touch.clientX;
+            const deltaY = touchStartY - touch.clientY;
+            
+            // 应用滚动，但限制在边界内
+            const newScrollLeft = Math.max(0, Math.min(
+                this.scrollWidth - this.clientWidth,
+                touchStartScrollLeft + deltaX
+            ));
+            const newScrollTop = Math.max(0, Math.min(
+                this.scrollHeight - this.clientHeight,
+                touchStartScrollTop + deltaY
+            ));
+            
+            this.scrollLeft = newScrollLeft;
+            this.scrollTop = newScrollTop;
+        }
+    }, { passive: false });
+    
+    // 添加滚动条样式优化（让滚动条更明显）
+    tableWrapper.style.overflowX = 'auto';
+    tableWrapper.style.overflowY = 'auto';
+    
+    addConsoleLog('表格独立滚动功能已启用（支持垂直和水平滚动）', 'system');
 }
