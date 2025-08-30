@@ -47,7 +47,14 @@ fi
 
 # 使用绝对路径调用pip
 venv/bin/pip install --upgrade pip
+
+# 分步安装依赖，避免pandas编译问题
+echo "📦 安装基础依赖..."
 venv/bin/pip install -r requirements.txt
+
+echo "📦 尝试安装pandas（可选，如果编译失败会跳过）..."
+venv/bin/pip install pandas==2.0.3 numpy==1.24.3 2>/dev/null && echo "✅ pandas安装成功" || echo "⚠️  pandas安装失败，将使用基础功能"
+
 echo "✅ 依赖安装完成"
 
 # 启动应用

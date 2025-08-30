@@ -2,7 +2,12 @@ from flask import Flask, render_template, request, jsonify, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
-import pandas as pd
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+    print("[警告] pandas未安装，高级数据处理功能将不可用")
 from datetime import datetime
 from models.database import db, TableData, TableSchema, UploadHistory
 from models.excel_processor import UniversalExcelProcessor
@@ -234,7 +239,11 @@ def export_data():
             return jsonify({'success': False, 'message': '没有有效数据可导出'})
         
         # 创建DataFrame，确保列顺序与schema一致
-        df = pd.DataFrame(rows, columns=schema)
+        if HAS_PANDAS:
+            df = pd.DataFrame(rows, columns=schema)
+        else:
+            # 简单的数据结构替代pandas
+            df = {"rows": rows, "columns": schema}
         
         # 清理DataFrame：移除完全空的列
         df = df.dropna(axis=1, how='all')
@@ -469,7 +478,11 @@ def export_all_groups():
                 continue
             
             # 创建DataFrame
-            df = pd.DataFrame(rows, columns=business_columns)
+            if HAS_PANDAS:
+                df = pd.DataFrame(rows, columns=business_columns)
+            else:
+                # 简单的数据结构替代pandas
+                df = {"rows": rows, "columns": business_columns}
             
             # 创建工作表
             ws_name = group.group_name.replace('表格组_', '').replace('_', '-')[:31]  # Excel工作表名称长度限制

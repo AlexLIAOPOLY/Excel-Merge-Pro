@@ -1,0 +1,11 @@
+# 完整依赖（包含pandas，可能需要编译）
+Flask==2.3.3
+Flask-CORS==4.0.0
+Flask-SQLAlchemy==3.0.5
+pandas==2.0.3
+numpy==1.24.3
+openpyxl==3.0.10
+SQLAlchemy==2.0.21
+Werkzeug==2.3.7
+xlrd==2.0.1
+gunicorn==21.2.0
