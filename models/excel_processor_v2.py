@@ -1,4 +1,9 @@
-import pandas as pd
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+    pd = None
 import os
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -37,7 +42,9 @@ class UniversalExcelProcessor:
         """清理列名"""
         cleaned = []
         for col in columns:
-            if pd.isna(col):
+            # Handle case when pandas is not available
+            is_na = pd.isna(col) if HAS_PANDAS else (col is None or col == '')
+            if is_na:
                 cleaned.append(f"未命名列_{len(cleaned)+1}")
             else:
                 col_str = str(col).strip()
@@ -81,6 +88,9 @@ class UniversalExcelProcessor:
         """处理Excel文件，支持任意格式"""
         print(f"[系统] 开始处理Excel文件: {filename}")
         
+        if not HAS_PANDAS:
+            return False, "pandas未安装，无法处理Excel文件", 0
+        
         try:
             # 统一使用openpyxl处理所有Excel文件
             df_raw = pd.read_excel(file_path, engine='openpyxl', header=None)
@@ -123,7 +133,9 @@ class UniversalExcelProcessor:
                 row_dict = {}
                 for col_name in df.columns:
                     value = row[col_name]
-                    if pd.notna(value):
+                    # Handle case when pandas is not available
+                    is_not_na = pd.notna(value) if HAS_PANDAS else (value is not None and value != '')
+                    if is_not_na:
                         row_dict[col_name] = str(value)
                     else:
                         row_dict[col_name] = ""
@@ -528,6 +540,9 @@ class UniversalExcelProcessor:
         """处理Excel文件并进行智能分组"""
         print(f"[系统] 开始处理Excel文件进行智能分组: {filename}")
         
+        if not HAS_PANDAS:
+            return False, "pandas未安装，无法处理Excel文件", 0, None
+        
         try:
             # 读取文件
             df_raw = pd.read_excel(file_path, engine='openpyxl', header=None)
@@ -584,7 +599,9 @@ class UniversalExcelProcessor:
                 row_dict = {}
                 for orig_col, target_col in zip(original_columns, target_columns):
                     value = row[orig_col] if orig_col in row.index else ""
-                    if pd.notna(value):
+                    # Handle case when pandas is not available
+                    is_not_na = pd.notna(value) if HAS_PANDAS else (value is not None and value != '')
+                    if is_not_na:
                         row_dict[target_col] = str(value)
                     else:
                         row_dict[target_col] = ""

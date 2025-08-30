@@ -7,6 +7,7 @@ try:
     HAS_PANDAS = True
 except ImportError:
     HAS_PANDAS = False
+    pd = None
     print("[警告] pandas未安装，高级数据处理功能将不可用")
 from datetime import datetime
 from models.database import db, TableData, TableSchema, UploadHistory
