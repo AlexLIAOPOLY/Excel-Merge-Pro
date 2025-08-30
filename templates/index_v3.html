@@ -699,6 +699,89 @@
             }
         }
 
+        /* 跨浏览器兼容的选择框样式 */
+        .custom-select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background: white;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            color: #374151;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.5;
+            min-width: 200px;
+            outline: none;
+            padding: 8px 40px 8px 12px;
+            position: relative;
+            transition: all 0.2s ease;
+            width: auto;
+            box-sizing: border-box;
+            
+            /* Safari和WebKit特殊处理 */
+            -webkit-border-radius: 6px;
+            -webkit-box-sizing: border-box;
+        }
+
+        /* 选择框悬停状态 */
+        .custom-select:hover {
+            border-color: #9ca3af;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 选择框焦点状态 */
+        .custom-select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none;
+        }
+
+        /* 选择框禁用状态 */
+        .custom-select:disabled {
+            background-color: #f9fafb;
+            color: #9ca3af;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* 选择框选项样式 */
+        .custom-select option {
+            color: #374151;
+            background: white;
+            font-size: 14px;
+            padding: 8px 12px;
+        }
+
+        /* Firefox特殊处理 */
+        @-moz-document url-prefix() {
+            .custom-select {
+                padding-right: 30px;
+                background-position: right 8px center;
+            }
+        }
+
+        /* Edge和IE特殊处理 */
+        .custom-select::-ms-expand {
+            display: none;
+        }
+
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .custom-select {
+                min-width: auto;
+                width: 100%;
+                font-size: 16px; /* 防止iOS缩放 */
+                padding: 10px 40px 10px 12px;
+            }
+        }
+
         /* 内容区域 */
         .content-section {
             display: flex;
@@ -1545,7 +1628,7 @@
                         <div class="toolbar-left">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <label for="tableSelector" style="font-weight: 500; color: #374151; font-size: 14px;">当前表格:</label>
-                                <select id="tableSelector" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; min-width: 200px;">
+                                <select id="tableSelector" class="custom-select">
                                     <option value="">加载中...</option>
                                 </select>
                                 <button id="editTableNameBtn" class="btn btn-secondary" onclick="showRenameTableModal()" title="重命名表格" style="padding: 8px 12px; font-size: 12px;">

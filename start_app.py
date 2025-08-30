@@ -10,6 +10,9 @@ import sys
 import subprocess
 import platform
 import time
+import socket
+import webbrowser
+import threading
 from pathlib import Path
 
 class ExcelMergeStarter:
@@ -17,6 +20,7 @@ class ExcelMergeStarter:
         self.system = platform.system()
         self.project_root = Path(__file__).parent
         self.venv_path = self.project_root / 'venv'
+        self.default_port = 5002
         
     def print_banner(self):
         """显示启动横幅"""
@@ -130,7 +134,100 @@ Python版本: {python_version}
         print("错误: 找不到应用主文件 (app_v2.py 或 app.py)")
         sys.exit(1)
         
-    def start_application(self):
+    def is_port_available(self, port):
+        """检查端口是否可用"""
+        try:
+            # 尝试连接到端口，如果连接成功说明端口被占用
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1)
+                result = sock.connect_ex(('localhost', port))
+                return result != 0  # 连接失败说明端口可用
+        except Exception:
+            # 如果出现异常，再尝试绑定测试
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.bind(('localhost', port))
+                    return True
+            except OSError:
+                return False
+    
+    def find_available_port(self, start_port=None):
+        """查找可用端口"""
+        if start_port is None:
+            start_port = self.default_port
+            
+        port = start_port
+        max_attempts = 100  # 最多尝试100个端口
+        
+        for attempt in range(max_attempts):
+            if self.is_port_available(port):
+                if attempt > 0:
+                    print(f"  经过 {attempt + 1} 次尝试，找到可用端口: {port}")
+                return port
+            else:
+                if attempt == 0:
+                    print(f"  端口 {port} 被占用，正在寻找其他可用端口...")
+                elif attempt < 5:  # 只显示前几次尝试
+                    print(f"  端口 {port} 也被占用...")
+            port += 1
+            
+        # 如果找不到可用端口，返回None
+        return None
+        
+    def open_browser(self, url, delay=3):
+        """延迟打开浏览器"""
+        def delayed_open():
+            time.sleep(delay)
+            try:
+                print(f"正在打开浏览器: {url}")
+                
+                # 尝试使用Chrome浏览器
+                chrome_paths = {
+                    'Darwin': [
+                        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+                        '/Applications/Chromium.app/Contents/MacOS/Chromium'
+                    ],
+                    'Windows': [
+                        r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+                        r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+                    ],
+                    'Linux': [
+                        '/usr/bin/google-chrome',
+                        '/usr/bin/google-chrome-stable',
+                        '/usr/bin/chromium-browser',
+                        '/usr/bin/chromium'
+                    ]
+                }
+                
+                chrome_found = False
+                if self.system in chrome_paths:
+                    for chrome_path in chrome_paths[self.system]:
+                        if os.path.exists(chrome_path):
+                            try:
+                                subprocess.Popen([chrome_path, url])
+                                print("✓ 已在Chrome浏览器中打开应用")
+                                chrome_found = True
+                                break
+                            except:
+                                continue
+                
+                # 如果找不到Chrome，使用系统默认浏览器
+                if not chrome_found:
+                    try:
+                        webbrowser.open(url)
+                        print("✓ 已在默认浏览器中打开应用")
+                    except:
+                        print("⚠ 无法自动打开浏览器，请手动访问: " + url)
+                        
+            except Exception as e:
+                print(f"⚠ 打开浏览器时出错: {e}")
+                print(f"请手动在浏览器中访问: {url}")
+        
+        # 在新线程中延迟打开浏览器
+        browser_thread = threading.Thread(target=delayed_open, daemon=True)
+        browser_thread.start()
+        
+    def start_application(self, port):
         """启动应用"""
         app_file = self.check_main_app()
         venv_python = self.get_venv_python()
@@ -142,6 +239,11 @@ Python版本: {python_version}
         env = os.environ.copy()
         env['FLASK_ENV'] = 'development'
         env['PYTHONPATH'] = str(self.project_root)
+        env['PORT'] = str(port)  # 设置端口环境变量
+        
+        # 准备在应用启动后自动打开浏览器
+        app_url = f"http://localhost:{port}"
+        self.open_browser(app_url, delay=4)  # 延迟4秒打开浏览器，给Flask更多时间启动
         
         try:
             # 启动Flask应用
@@ -161,16 +263,30 @@ Python版本: {python_version}
             self.create_virtual_environment()
             self.install_dependencies()
             
+            # 提前检查可用端口
+            print("正在检查端口可用性...")
+            available_port = self.find_available_port()
+            
+            if available_port is None:
+                print("错误: 无法找到可用端口 (已尝试100个连续端口)")
+                sys.exit(1)
+                
+            if available_port != self.default_port:
+                print(f"✓ 默认端口 {self.default_port} 被占用，自动切换到端口 {available_port}")
+            else:
+                print(f"✓ 使用默认端口 {available_port}")
+            
             print("\n" + "=" * 60)
             print("准备就绪! 即将启动Excel合并系统...")
             print("=" * 60)
-            print("\n启动后请在浏览器中访问: http://localhost:5002")
+            print(f"\n启动后将自动在Google Chrome浏览器中打开: http://localhost:{available_port}")
+            print("如果浏览器没有自动打开，请手动访问上述地址")
             print("按 Ctrl+C 可以停止服务器")
             print("\n")
             
             time.sleep(2)  # 给用户时间阅读信息
             
-            self.start_application()
+            self.start_application(available_port)
             
         except KeyboardInterrupt:
             print("\n\n用户取消启动")
