@@ -1,4 +1,9 @@
-import pandas as pd
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+    pd = None
 import os
 from datetime import datetime
 from difflib import SequenceMatcher
