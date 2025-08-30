@@ -32,6 +32,30 @@ def allowed_file(filename):
 def index():
     return render_template('index.html')
 
+@app.route('/progress', methods=['GET'])
+def get_progress():
+    """获取当前处理进度"""
+    progress = UniversalExcelProcessor.get_progress()
+    return jsonify({
+        'success': True,
+        'progress': progress
+    })
+
+@app.route('/clear-cache', methods=['POST'])
+def clear_cache():
+    """清理系统缓存"""
+    try:
+        UniversalExcelProcessor.clear_cache()
+        return jsonify({
+            'success': True,
+            'message': '缓存已清理'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'清理缓存失败: {str(e)}'
+        })
+
 @app.route('/upload', methods=['POST'])
 def upload_files():
     print("[系统] 收到文件上传请求")
@@ -87,6 +111,14 @@ def upload_files():
                 'count': 0,
                 'group_id': None
             })
+    
+    # 上传完成后清理重复分组（确保数据一致性）
+    try:
+        cleaned_count = UniversalExcelProcessor.cleanup_duplicate_groups()
+        if cleaned_count > 0:
+            print(f"[系统] 上传后清理了 {cleaned_count} 个重复分组")
+    except Exception as e:
+        print(f"[警告] 清理重复分组时出错: {str(e)}")
     
     return jsonify({'results': results})
 

@@ -14,6 +14,7 @@ class TableGroup(db.Model):
     description = db.Column(db.Text)               # 分组描述
     schema_fingerprint = db.Column(db.String(500)) # 表头指纹用于匹配
     column_count = db.Column(db.Integer)           # 列数
+    confidence_score = db.Column(db.Float, default=1.0) # 置信度分数 (0.0-1.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -22,12 +23,15 @@ class TableGroup(db.Model):
     schemas = db.relationship('TableSchema', backref='table_group', lazy=True)
     
     def to_dict(self):
+        confidence_percent = int((self.confidence_score or 1.0) * 100)
         return {
             'id': self.id,
             'group_name': self.group_name,
             'description': self.description,
             'column_count': self.column_count,
             'record_count': len(self.data_records),
+            'confidence_score': self.confidence_score or 1.0,
+            'confidence_percent': confidence_percent,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S')
         }

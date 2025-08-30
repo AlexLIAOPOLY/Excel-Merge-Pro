@@ -157,11 +157,10 @@ function initializeEventListeners() {
     // 文件选择事件 - 选择后自动上传
     fileInput.addEventListener('change', function() {
         const files = Array.from(this.files);
-        updateFileList(files);
         
         if (files.length > 0) {
             addConsoleLog(`已选择 ${files.length} 个文件，开始自动上传`, 'system');
-            // 自动上传
+            // 直接自动上传，不显示文件列表
             uploadFiles();
         }
     });
@@ -213,9 +212,8 @@ function initializeEventListeners() {
             excelFiles.forEach(file => dt.items.add(file));
             fileInput.files = dt.files;
             
-            updateFileList(excelFiles);
             addConsoleLog(`通过拖拽选择了 ${excelFiles.length} 个Excel文件，开始自动上传`, 'system');
-            // 自动上传
+            // 直接自动上传，不显示文件列表
             uploadFiles();
         } else {
             addConsoleLog('请选择Excel文件 (.xlsx 或 .xls)', 'warning');
@@ -1250,40 +1248,7 @@ async function deleteRecord(id) {
     }
 }
 
-// 清空所有数据
-async function clearAllData() {
-    if (!confirm('确定要清空所有数据吗？此操作不可撤销！')) return;
-    
-    addConsoleLog('清空所有数据...', 'system');
-    
-    try {
-        const response = await fetch('/clear', {
-            method: 'POST'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            currentData = [];
-            filteredData = [];
-            currentSchema = [];
-            
-            renderTable();
-            updateStats({
-                total_records: 0,
-                source_files: 0,
-                total_columns: 0,
-                last_update: new Date().toLocaleString()
-            });
-            
-            addConsoleLog('所有数据已清空', 'system');
-        } else {
-            addConsoleLog(`清空失败: ${result.message}`, 'error');
-        }
-    } catch (error) {
-        addConsoleLog(`清空数据时发生错误: ${error.message}`, 'error');
-    }
-}
+
 
 
 
@@ -1657,7 +1622,11 @@ function updateTableSelector() {
         }
         // 去掉时间戳等后缀，保留主要名称
         displayName = displayName.replace(/_\d{8}_\d{6}$/, '');
-        displayName += ` (${group.record_count}条)`;
+        
+        // 添加置信度显示
+        const confidencePercent = group.confidence_percent || 100;
+        displayName += ` (${group.record_count}条)--置信度：${confidencePercent}%`;
+        
         option.textContent = displayName;
         selector.appendChild(option);
     });
@@ -1810,6 +1779,9 @@ async function clearAllData() {
             const selector = document.getElementById('tableSelector');
             selector.innerHTML = '<option value="">暂无表格</option>';
             
+            // 同时刷新右侧文件管理列表
+            await loadTablesList();
+            
             addConsoleLog('✅ 所有数据已清空', 'system');
             showNotification('清空成功', '所有表格数据已清空', 'info');
         } else {
@@ -1839,11 +1811,9 @@ function showRenameTableModal() {
     
     // 提取并优化表格名称显示
     let currentName = currentGroup.group_name;
-    if (currentName.startsWith('表格组_')) {
-        currentName = currentName.replace('表格组_', '表格');
-    }
+    
     // 去掉时间戳等后缀，保留主要名称
-    currentName = currentName.replace(/_\d{8}_\d{6}$/, '');
+    currentName = currentName.replace(/_\d+$/, '');
     // 去除记录数信息
     currentName = currentName.replace(/\s*\(\d+条\)$/, '');
     

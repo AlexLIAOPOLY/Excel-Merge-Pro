@@ -18,6 +18,34 @@
             color: #333;
             line-height: 1.6;
             min-height: 100vh;
+            /* 防止页面级滚动条抖动 */
+            overflow-y: scroll;
+            scrollbar-gutter: stable;
+        }
+
+        /* 全局页面滚动条样式 - 淡色风格 */
+        body::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        body::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        body::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 6px;
+            transition: background 0.3s ease;
+        }
+
+        body::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        /* Firefox 全局滚动条样式 */
+        html {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 0, 0, 0.08) rgba(0, 0, 0, 0.02);
         }
 
         /* 导航栏 - 现代化升级版 */
@@ -834,6 +862,14 @@
             flex-direction: column;
             gap: 24px;
             align-self: start;  /* 避免侧边栏被拉伸 */
+            max-height: calc(100vh - 140px);  /* 限制最大高度，预留导航栏和间距 */
+            overflow-y: auto;  /* 允许垂直滚动 */
+            padding-right: 8px;  /* 为滚动条预留空间 */
+            /* 稳定滚动条占位 */
+            scrollbar-gutter: stable;
+            /* Firefox 滚动条样式 */
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 0, 0, 0.08) rgba(0, 0, 0, 0.02);
         }
 
         /* 卡片样式 */
@@ -974,15 +1010,7 @@
         }
 
         /* 表格容器优化 - 确保充分利用可用空间 */
-        .table-wrapper {
-            overflow-x: auto;
-            overflow-y: auto;
-            position: relative;
-            border-radius: 0 0 12px 12px;
-            min-height: 300px;  /* 减少最小高度，避免小屏幕问题 */
-            max-height: calc(100vh - 420px);  /* 精确计算：导航72px + 容器36px + 间距32px + 上传区域200px + 表格头70px + 安全边距10px */
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        /* (已合并到下方的.table-wrapper定义中) */
 
         /* 当上传区域折叠时，表格获得更多空间 */
         .upload-card.collapsed ~ .card .table-wrapper {
@@ -1202,12 +1230,88 @@
 
         .table-wrapper {
             overflow-x: auto;
-            overflow-y: auto;
+            overflow-y: scroll;  /* 始终显示垂直滚动条，避免抖动 */
             position: relative;
             /* 确保sticky定位正常工作 */
             border-radius: 0 0 12px 12px;
-            min-height: 400px;  /* 设置最小高度确保表格有足够显示空间 */
-            max-height: 600px;  /* 限制最大高度避免占用过多空间 */
+            min-height: 300px;  /* 减少最小高度，避免小屏幕问题 */
+            max-height: calc(100vh - 420px);  /* 精确计算：导航72px + 容器36px + 间距32px + 上传区域200px + 表格头70px + 安全边距10px */
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            /* 现代浏览器稳定滚动条占位 */
+            scrollbar-gutter: stable;
+        }
+
+        /* 自定义滚动条样式 - 美化始终显示的滚动条 */
+        .table-wrapper::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .table-wrapper::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 4px;
+        }
+
+        .table-wrapper::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+
+        .table-wrapper::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        /* Firefox 滚动条样式 */
+        .table-wrapper {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.02);
+        }
+
+        /* 侧边栏滚动条样式 - 与表格区域保持一致的淡色风格 */
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        /* (Firefox侧边栏滚动条样式已合并到上方.sidebar定义中) */
+
+        /* 文件管理区域内部滚动条优化 */
+        .file-list {
+            scrollbar-gutter: stable;
+        }
+
+        .file-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .file-list::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 3px;
+        }
+
+        .file-list::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 3px;
+            transition: background 0.3s ease;
+        }
+
+        .file-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.15);
         }
         
         /* 确保表格不会超出容器 */
