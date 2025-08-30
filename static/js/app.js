@@ -6,22 +6,30 @@ let tableGroups = [];
 let currentGroupId = null;
 
 
-// 控制台日志函数
+// 控制台日志函数 - 修复：处理控制台元素不存在的情况
 function addConsoleLog(message, type = 'system') {
-    const console = document.getElementById('console');
+    const consoleElement = document.getElementById('console');
+    
+    // 如果控制台元素不存在（已被删除），则静默跳过
+    if (!consoleElement) {
+        // 可选：在浏览器控制台输出日志，方便调试
+        window.console && window.console.log(`[${type.toUpperCase()}] ${message}`);
+        return;
+    }
+    
     const logEntry = document.createElement('div');
     logEntry.className = `log-entry log-${type}`;
     
     const timestamp = new Date().toLocaleTimeString();
     logEntry.textContent = `[${timestamp}] ${message}`;
     
-    console.appendChild(logEntry);
-    console.scrollTop = console.scrollHeight;
+    consoleElement.appendChild(logEntry);
+    consoleElement.scrollTop = consoleElement.scrollHeight;
     
     // 限制日志条数
-    const logs = console.children;
+    const logs = consoleElement.children;
     if (logs.length > 50) {
-        console.removeChild(logs[0]);
+        consoleElement.removeChild(logs[0]);
     }
 }
 
@@ -123,13 +131,19 @@ function initializeNavbar() {
 function initializeTableSelector() {
     const tableSelector = document.getElementById('tableSelector');
     if (tableSelector) {
-        tableSelector.addEventListener('change', function() {
-            const selectedGroupId = this.value;
-            if (selectedGroupId) {
-                currentGroupId = parseInt(selectedGroupId);
-                loadGroupData(currentGroupId);
-            }
-        });
+        // 移除之前的监听器（如果存在）
+        tableSelector.removeEventListener('change', handleTableSelectorChange);
+        // 添加新的监听器
+        tableSelector.addEventListener('change', handleTableSelectorChange);
+    }
+}
+
+// 表格选择器变化处理函数
+function handleTableSelectorChange() {
+    const selectedGroupId = this.value;
+    if (selectedGroupId && selectedGroupId !== 'back-to-groups' && selectedGroupId !== 'single-file-view') {
+        currentGroupId = parseInt(selectedGroupId);
+        loadGroupData(currentGroupId);
     }
 }
 
@@ -271,7 +285,10 @@ async function uploadFiles() {
         displayUploadResults(result.results);
         
         // 刷新表格列表和数据
-        await loadTableList();
+        await Promise.all([
+            loadTableList(),
+            loadTablesList()  // 刷新文件管理列表
+        ]);
         
         // 清空文件选择
         fileInput.value = '';
@@ -328,8 +345,17 @@ function displayUploadResults(results) {
                     'info'
                 );
                 addConsoleLog(`上传完成: ${successCount}/${results.length} 个文件成功，共导入 ${totalCount} 条记录`, 'system');
+                
+                // 批量上传成功后自动折叠上传区域
+                autoCollapseUploadArea();
             }
         }, results.length * 200 + 500);
+    } else {
+        // 单文件上传成功后也自动折叠
+        const hasSuccess = results.some(r => r.success);
+        if (hasSuccess) {
+            autoCollapseUploadArea();
+        }
     }
 }
 
@@ -465,21 +491,45 @@ function showToolbarButtons() {
     }
 }
 
-// 更新统计信息
+// 更新统计信息 - 修复：处理统计元素不存在的情况
 function updateStats(stats) {
-    document.getElementById('totalRecords').textContent = stats.total_records || 0;
-    document.getElementById('sourceFiles').textContent = stats.source_files || 0;
-    document.getElementById('totalColumns').textContent = stats.total_columns || 0;
+    // 检查统计元素是否存在（因为我们可能删除了数据概览部分）
+    const totalRecordsEl = document.getElementById('totalRecords');
+    const sourceFilesEl = document.getElementById('sourceFiles');
+    const totalColumnsEl = document.getElementById('totalColumns');
+    const lastUpdateEl = document.getElementById('lastUpdate');
     
-    // 修复更新时间显示
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('zh-CN', { 
-        hour12: false,
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
-    });
-    document.getElementById('lastUpdate').textContent = timeString;
+    // 如果统计元素不存在，静默跳过
+    if (!totalRecordsEl || !sourceFilesEl || !totalColumnsEl) {
+        // 在浏览器控制台输出统计信息，方便调试
+        if (stats && window.console) {
+            window.console.log('统计信息:', {
+                总记录: stats.total_records || 0,
+                来源文件: stats.source_files || 0,
+                数据列: stats.total_columns || 0
+            });
+        }
+        return;
+    }
+    
+    // 如果元素存在，正常更新
+    if (stats) {
+        totalRecordsEl.textContent = stats.total_records || 0;
+        sourceFilesEl.textContent = stats.source_files || 0;
+        totalColumnsEl.textContent = stats.total_columns || 0;
+    }
+    
+    // 更新时间显示
+    if (lastUpdateEl) {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('zh-CN', { 
+            hour12: false,
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+        });
+        lastUpdateEl.textContent = timeString;
+    }
 }
 
 // 渲染表格
@@ -1578,6 +1628,11 @@ function updateTableSelector() {
     
     selector.innerHTML = '';
     
+    // 清除单文件查看模式的标记和事件监听器
+    selector.removeAttribute('data-single-file');
+    selector.removeAttribute('data-filename');
+    selector.onchange = null; // 清除之前设置的onchange
+    
     if (tableGroups.length === 0) {
         selector.innerHTML = '<option value="">暂无表格</option>';
         // 隐藏编辑按钮
@@ -1607,8 +1662,79 @@ function updateTableSelector() {
         selector.appendChild(option);
     });
     
-    // 初始化选择器事件
+    // 重新初始化选择器事件
     initializeTableSelector();
+}
+
+// 更新表格选择器显示单个文件信息
+function updateTableSelectorForSingleFile(filename, recordCount) {
+    const selector = document.getElementById('tableSelector');
+    const editBtn = document.getElementById('editTableNameBtn');
+    
+    if (!selector) return;
+    
+    // 清空现有选项
+    selector.innerHTML = '';
+    
+    // 添加返回总表的选项
+    const backOption = document.createElement('option');
+    backOption.value = 'back-to-groups';
+    backOption.textContent = '← 返回总表';
+    selector.appendChild(backOption);
+    
+    // 创建显示当前文件的选项
+    const currentOption = document.createElement('option');
+    currentOption.value = 'single-file-view';
+    currentOption.textContent = `${filename} (${recordCount}条)`;
+    currentOption.selected = true;
+    selector.appendChild(currentOption);
+    
+    // 隐藏编辑按钮，因为查看单个文件时不需要重命名功能
+    if (editBtn) {
+        editBtn.style.display = 'none';
+    }
+    
+    // 添加数据属性标记当前是单文件查看模式
+    selector.setAttribute('data-single-file', 'true');
+    selector.setAttribute('data-filename', filename);
+    
+    // 添加选择器变化监听
+    selector.onchange = function() {
+        if (this.value === 'back-to-groups') {
+            backToTableGroups();
+        }
+    };
+    
+    addConsoleLog(`📋 表格标题已更新为: ${filename}`, 'system');
+}
+
+// 返回表格组模式
+async function backToTableGroups() {
+    try {
+        addConsoleLog('🔄 正在返回总表...', 'system');
+        showNotification('正在加载总表...', 'info');
+        
+        // 重新加载表格组数据
+        await loadTableList();
+        
+        // 如果有表格组，选择第一个并加载其数据
+        if (tableGroups.length > 0) {
+            currentGroupId = tableGroups[0].id;
+            const selector = document.getElementById('tableSelector');
+            if (selector) {
+                selector.value = currentGroupId;
+            }
+            await loadGroupData(currentGroupId);
+        }
+        
+        addConsoleLog(`✅ 已返回总表，当前显示: ${tableGroups.length > 0 ? tableGroups[0].group_name : '无表格'}`, 'system');
+        showNotification('已返回总表', 'success');
+        
+    } catch (error) {
+        console.error('返回总表失败:', error);
+        addConsoleLog('❌ 返回总表失败: ' + error.message, 'error');
+        showNotification('返回总表失败: ' + error.message, 'error');
+    }
 }
 
 // 加载指定表格的数据
@@ -2141,4 +2267,439 @@ function addTableScrollControl() {
     tableWrapper.style.overflowY = 'auto';
     
     addConsoleLog('表格独立滚动功能已启用（支持垂直和水平滚动）', 'system');
+}
+
+// ==================== 文件管理功能 ====================
+
+// 分页相关变量
+let filesData = [];
+let currentPage = 1;
+const filesPerPage = 3;  // 每页显示3个文件
+
+// 加载已上传文件列表
+async function loadTablesList() {
+    const loadingElement = document.getElementById('loadingTables');
+    const noTablesMessage = document.getElementById('noTablesMessage');
+    const tablesListContainer = document.getElementById('tablesListContainer');
+    
+    try {
+        loadingElement.style.display = 'block';
+        noTablesMessage.style.display = 'none';
+        tablesListContainer.style.display = 'none';
+        
+        addConsoleLog('正在加载文件列表...', 'system');
+        
+        const response = await fetch('/uploaded-files');
+        const data = await response.json();
+        
+        if (data.success && data.files && data.files.length > 0) {
+            filesData = data.files;  // 保存所有文件数据
+            currentPage = 1;  // 重置到第一页
+            renderFilesList();
+            tablesListContainer.style.display = 'block';
+            noTablesMessage.style.display = 'none';
+            addConsoleLog(`成功加载 ${data.files.length} 个文件`, 'system');
+        } else {
+            filesData = [];
+            noTablesMessage.style.display = 'block';
+            tablesListContainer.style.display = 'none';
+            addConsoleLog('暂无上传的文件', 'system');
+        }
+    } catch (error) {
+        console.error('加载文件列表失败:', error);
+        addConsoleLog('加载文件列表失败: ' + error.message, 'error');
+        noTablesMessage.style.display = 'block';
+        tablesListContainer.style.display = 'none';
+    } finally {
+        loadingElement.style.display = 'none';
+    }
+}
+
+// 渲染文件列表
+function renderFilesList() {
+    const tablesList = document.getElementById('tablesList');
+    const paginationContainer = document.getElementById('paginationContainer');
+    
+    if (!filesData || filesData.length === 0) {
+        tablesList.innerHTML = '';
+        paginationContainer.style.display = 'none';
+        return;
+    }
+    
+    // 计算分页
+    const totalFiles = filesData.length;
+    const totalPages = Math.ceil(totalFiles / filesPerPage);
+    const startIndex = (currentPage - 1) * filesPerPage;
+    const endIndex = Math.min(startIndex + filesPerPage, totalFiles);
+    const currentFiles = filesData.slice(startIndex, endIndex);
+    
+    // 渲染当前页的文件
+    let filesHtml = currentFiles.map(file => {
+        const displayName = file.filename || `文件-${file.id}`;
+        const recordCount = file.current_records || 0;
+        const uploadTime = file.upload_time ? new Date(file.upload_time).toLocaleDateString() : '--';
+        const hasData = file.has_data;
+        
+        // 如果没有数据了，显示不同的样式
+        const itemStyle = hasData ? '' : 'opacity: 0.6; border-color: #f87171;';
+        const statusText = hasData ? '' : ' (数据已删除)';
+        
+        return `
+            <div class="table-item" data-filename="${file.filename}" style="${itemStyle}">
+                <div class="table-item-header">
+                    <div class="table-item-title" onclick="viewFile('${file.filename}')" title="点击查看文件内容">
+                        ${displayName}${statusText}
+                    </div>
+                    <div class="table-item-info">
+                        记录: ${recordCount} 条 | 上传: ${uploadTime}
+                    </div>
+                </div>
+                <div class="table-item-actions">
+                    <button class="table-action-btn table-action-btn-view" 
+                            onclick="viewFile('${file.filename}')" 
+                            title="查看" 
+                            ${!hasData ? 'disabled style="opacity:0.5;"' : ''}>
+                        查看
+                    </button>
+                    <button class="table-action-btn table-action-btn-export" 
+                            onclick="exportFile('${file.filename}')" 
+                            title="导出"
+                            ${!hasData ? 'disabled style="opacity:0.5;"' : ''}>
+                        导出
+                    </button>
+                    <button class="table-action-btn table-action-btn-delete" 
+                            onclick="deleteFile('${file.filename}')" 
+                            title="删除">
+                        删除
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // 在最后一页的末尾添加上传新文件的卡片
+    if (currentPage === totalPages) {
+        filesHtml += `
+            <div class="table-item" style="border: 2px dashed #d1d5db; background: #f9fafb;">
+                <div class="table-item-header" style="background: #f9fafb; border-bottom: none;">
+                    <div class="table-item-title" style="color: #6b7280; text-align: center;">
+                        上传新文件
+                    </div>
+                </div>
+                <div class="table-item-actions" style="padding: 12px 16px;">
+                    <button class="table-action-btn table-action-btn-upload" onclick="document.getElementById('fileInput').click()" title="上传新文件">
+                        选择文件上传
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    tablesList.innerHTML = filesHtml;
+    
+    // 更新分页控件
+    updatePaginationControls(currentPage, totalPages, totalFiles);
+}
+
+// 更新分页控件
+function updatePaginationControls(page, totalPages, totalFiles) {
+    const paginationContainer = document.getElementById('paginationContainer');
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+    const pageInfo = document.getElementById('pageInfo');
+    
+    if (totalPages <= 1) {
+        paginationContainer.style.display = 'none';
+        return;
+    }
+    
+    paginationContainer.style.display = 'block';
+    pageInfo.textContent = `${page}/${totalPages} (共${totalFiles}个文件)`;
+    
+    // 更新按钮状态
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= totalPages;
+    
+    if (page <= 1) {
+        prevBtn.style.opacity = '0.5';
+        prevBtn.style.cursor = 'not-allowed';
+    } else {
+        prevBtn.style.opacity = '1';
+        prevBtn.style.cursor = 'pointer';
+    }
+    
+    if (page >= totalPages) {
+        nextBtn.style.opacity = '0.5';
+        nextBtn.style.cursor = 'not-allowed';
+    } else {
+        nextBtn.style.opacity = '1';
+        nextBtn.style.cursor = 'pointer';
+    }
+}
+
+// 切换页码
+function changePage(direction) {
+    const totalPages = Math.ceil(filesData.length / filesPerPage);
+    const newPage = currentPage + direction;
+    
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        renderFilesList();
+        addConsoleLog(`切换到第 ${currentPage} 页`, 'system');
+    }
+}
+
+// 查看文件内容
+async function viewFile(filename) {
+    if (!filename) {
+        showNotification('文件名无效', 'error');
+        return;
+    }
+    
+    try {
+        addConsoleLog(`正在加载文件 ${filename} 的数据...`, 'system');
+        showNotification('正在加载文件数据...', 'info');
+        
+        const response = await fetch(`/uploaded-files/${encodeURIComponent(filename)}/data`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // 更新全局数据
+            currentData = data.data || [];
+            filteredData = [...currentData];
+            currentSchema = data.schema || [];
+            
+            // 渲染表格
+            renderTable();
+            
+            // 更新左侧表格标题显示当前查看的文件名
+            updateTableSelectorForSingleFile(filename, currentData.length);
+            
+            // 滚动到表格区域
+            const tableContainer = document.querySelector('.table-container');
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            
+            addConsoleLog(`文件 ${filename} 加载成功，共 ${currentData.length} 条记录`, 'system');
+            showNotification(`文件加载成功，共 ${currentData.length} 条记录`, 'success');
+        } else {
+            throw new Error(data.message || '加载失败');
+        }
+        
+    } catch (error) {
+        console.error('查看文件失败:', error);
+        addConsoleLog('查看文件失败: ' + error.message, 'error');
+        showNotification('查看文件失败: ' + error.message, 'error');
+    }
+}
+
+// 导出单个文件
+async function exportFile(filename) {
+    if (!filename) {
+        showNotification('文件名无效', 'error');
+        return;
+    }
+    
+    try {
+        addConsoleLog(`正在导出文件 ${filename}...`, 'system');
+        showNotification('正在导出文件...', 'info');
+        
+        const response = await fetch(`/uploaded-files/${encodeURIComponent(filename)}/export`);
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // 从响应头获取文件名
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let exportFilename = 'export.xlsx';
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (filenameMatch && filenameMatch[1]) {
+                    exportFilename = filenameMatch[1].replace(/['"]/g, '');
+                }
+            }
+            
+            a.download = exportFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            addConsoleLog(`文件 ${filename} 导出成功`, 'system');
+            showNotification('文件导出成功', 'success');
+        } else {
+            const errorData = await response.json();
+            throw new Error(errorData.message || '导出失败');
+        }
+    } catch (error) {
+        console.error('导出文件失败:', error);
+        addConsoleLog('导出文件失败: ' + error.message, 'error');
+        showNotification('导出文件失败: ' + error.message, 'error');
+    }
+}
+
+// 删除文件
+async function deleteFile(filename) {
+    if (!filename) {
+        showNotification('文件名无效', 'error');
+        return;
+    }
+    
+    // 确认删除
+    const confirmed = confirm(`确定要删除文件 "${filename}" 吗？\n\n此操作将永久删除该文件的所有数据，无法恢复。`);
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        addConsoleLog(`正在删除文件 "${filename}"...`, 'system');
+        showNotification('正在删除文件...', 'info');
+        
+        const response = await fetch(`/uploaded-files/${encodeURIComponent(filename)}/delete`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            addConsoleLog(`文件 "${filename}" 删除成功`, 'system');
+            showNotification('文件删除成功', 'success');
+            
+            // 如果当前正在查看被删除的文件，需要清空表格显示
+            const currentFilename = getCurrentDisplayedFilename();
+            if (currentFilename === filename) {
+                currentData = [];
+                filteredData = [];
+                currentSchema = [];
+                renderTable();
+                // 不需要更新统计信息，因为数据概览部分已被删除
+            }
+            
+            // 重新加载文件列表和表格选择器
+            await Promise.all([
+                loadTablesList(),
+                loadTableList()
+            ]);
+            
+            // 如果当前页没有文件了，回到上一页
+            const totalPages = Math.ceil(filesData.length / filesPerPage);
+            if (currentPage > totalPages && totalPages > 0) {
+                currentPage = totalPages;
+                renderFilesList();
+            }
+        } else {
+            throw new Error(data.message || '删除失败');
+        }
+    } catch (error) {
+        console.error('删除文件失败:', error);
+        addConsoleLog('删除文件失败: ' + error.message, 'error');
+        showNotification('删除文件失败: ' + error.message, 'error');
+    }
+}
+
+// 获取当前显示的文件名（辅助函数）
+function getCurrentDisplayedFilename() {
+    // 从当前数据中获取文件名，假设所有记录都来自同一个文件
+    if (currentData && currentData.length > 0) {
+        return currentData[0].source_file;
+    }
+    return null;
+}
+
+// 刷新文件列表
+async function refreshTablesList() {
+    addConsoleLog('手动刷新文件列表...', 'system');
+    await loadTablesList();
+}
+
+// 修改页面初始化，添加表格管理初始化
+document.addEventListener('DOMContentLoaded', function() {
+    addConsoleLog('DataMerge Pro 系统初始化完成', 'system');
+    
+    initializeEventListeners();
+    initializeNavbar();
+    initializeUploadArea(); // 初始化上传区域功能
+    loadTableList();
+    loadTablesList(); // 添加表格管理初始化
+});
+
+// 初始化上传区域功能
+function initializeUploadArea() {
+    // 检查是否有现有数据，如果有则自动折叠上传区域
+    setTimeout(() => {
+        if (tableGroups && tableGroups.length > 0) {
+            collapseUploadArea(false); // 静默折叠，不显示动画
+        }
+    }, 1000);
+    
+    addConsoleLog('上传区域功能初始化完成', 'system');
+}
+
+// 切换上传区域展开/折叠状态
+function toggleUploadArea() {
+    const uploadCard = document.getElementById('uploadCard');
+    const isCollapsed = uploadCard.classList.contains('collapsed');
+    
+    if (isCollapsed) {
+        expandUploadArea();
+    } else {
+        collapseUploadArea();
+    }
+}
+
+// 展开上传区域
+function expandUploadArea() {
+    const uploadCard = document.getElementById('uploadCard');
+    const uploadBody = document.getElementById('uploadBody');
+    
+    if (!uploadCard || uploadCard.classList.contains('expanding')) return;
+    
+    uploadCard.classList.add('expanding');
+    uploadCard.classList.remove('collapsed');
+    
+    // 添加展开动画
+    uploadBody.style.animation = 'expandUpload 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards';
+    
+    setTimeout(() => {
+        uploadCard.classList.remove('expanding');
+        uploadBody.style.animation = '';
+        addConsoleLog('上传区域已展开', 'system');
+    }, 400);
+}
+
+// 折叠上传区域
+function collapseUploadArea(withAnimation = true) {
+    const uploadCard = document.getElementById('uploadCard');
+    const uploadBody = document.getElementById('uploadBody');
+    
+    if (!uploadCard || uploadCard.classList.contains('collapsing')) return;
+    
+    if (withAnimation) {
+        uploadCard.classList.add('collapsing');
+        
+        // 添加折叠动画
+        uploadBody.style.animation = 'collapseUpload 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards';
+        
+        setTimeout(() => {
+            uploadCard.classList.add('collapsed');
+            uploadCard.classList.remove('collapsing');
+            uploadBody.style.animation = '';
+            addConsoleLog('上传区域已折叠', 'system');
+        }, 400);
+    } else {
+        // 静默折叠，无动画
+        uploadCard.classList.add('collapsed');
+    }
+}
+
+// 自动折叠上传区域（在文件上传成功后调用）
+function autoCollapseUploadArea() {
+    setTimeout(() => {
+        collapseUploadArea(true);
+        showNotification('上传完成', '上传区域已自动收起，为表格预留更多空间', 'info');
+    }, 2000); // 上传完成2秒后自动折叠
 }

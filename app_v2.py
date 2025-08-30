@@ -541,6 +541,203 @@ def get_upload_history():
         print(f"[错误] 获取上传历史时出错: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
+@app.route('/uploaded-files')
+def get_uploaded_files():
+    """获取所有上传的文件列表"""
+    try:
+        print("[系统] 获取已上传文件列表")
+        
+        # 获取成功上传的文件历史
+        files = UploadHistory.query.filter_by(status='success').order_by(UploadHistory.upload_time.desc()).all()
+        
+        # 为每个文件添加其数据统计
+        files_with_stats = []
+        for file_record in files:
+            file_data = file_record.to_dict()
+            
+            # 统计该文件的数据记录数
+            data_count = TableData.query.filter_by(source_file=file_record.filename).count()
+            file_data['current_records'] = data_count
+            
+            # 检查文件是否还有关联的数据（可能被部分删除了）
+            file_data['has_data'] = data_count > 0
+            
+            files_with_stats.append(file_data)
+        
+        print(f"[系统] 返回 {len(files_with_stats)} 个文件记录")
+        return jsonify({
+            'success': True,
+            'files': files_with_stats,
+            'total': len(files_with_stats)
+        })
+    except Exception as e:
+        print(f"[错误] 获取文件列表时出错: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/uploaded-files/<filename>/data')
+def get_file_data(filename):
+    """获取特定文件的数据"""
+    try:
+        print(f"[系统] 获取文件 {filename} 的数据")
+        
+        # 获取该文件的所有数据记录
+        data_records = TableData.query.filter_by(source_file=filename).order_by(TableData.created_at.asc()).all()
+        
+        if not data_records:
+            return jsonify({'success': False, 'message': '文件数据不存在或已被删除'})
+        
+        # 获取数据
+        data = [record.to_dict() for record in data_records]
+        
+        # 从第一条记录获取schema（所有记录应该有相同的结构）
+        if data:
+            first_record = data[0]
+            # 排除系统字段，获取业务字段作为schema
+            system_fields = {'id', 'source_file', 'created_at', 'updated_at', 'table_group_id'}
+            schema = [key for key in first_record.keys() if key not in system_fields]
+        else:
+            schema = []
+        
+        # 统计信息
+        stats = {
+            'total_records': len(data),
+            'source_file': filename,
+            'total_columns': len(schema),
+            'upload_time': data_records[0].created_at.strftime('%Y-%m-%d %H:%M:%S') if data_records else None
+        }
+        
+        print(f"[系统] 返回文件 {filename} 的 {len(data)} 条记录")
+        return jsonify({
+            'success': True,
+            'data': data,
+            'schema': schema,
+            'stats': stats
+        })
+    except Exception as e:
+        print(f"[错误] 获取文件数据时出错: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/uploaded-files/<filename>/export')
+def export_file_data(filename):
+    """导出特定文件的数据"""
+    try:
+        print(f"[系统] 开始导出文件 {filename}")
+        
+        # 获取该文件的所有数据记录
+        data_records = TableData.query.filter_by(source_file=filename).order_by(TableData.created_at.asc()).all()
+        
+        if not data_records:
+            return jsonify({'success': False, 'message': '文件数据不存在或已被删除'})
+        
+        # 准备数据
+        data = [record.to_dict() for record in data_records]
+        
+        if not data:
+            return jsonify({'success': False, 'message': '没有数据可导出'})
+        
+        # 系统字段列表
+        system_fields = {'id', 'source_file', 'created_at', 'updated_at', 'table_group_id'}
+        
+        # 获取业务数据列
+        first_record = data[0]
+        business_columns = [col for col in first_record.keys() if col not in system_fields and col.strip()]
+        
+        if not business_columns:
+            return jsonify({'success': False, 'message': '没有可导出的数据列'})
+        
+        # 准备导出数据
+        rows = []
+        for item in data:
+            row = {}
+            has_data = False
+            
+            for col in business_columns:
+                value = item.get(col, '')
+                if value is not None:
+                    value = str(value).strip()
+                else:
+                    value = ''
+                row[col] = value
+                
+                if value and value != '':
+                    has_data = True
+            
+            if has_data:
+                rows.append(row)
+        
+        if not rows:
+            return jsonify({'success': False, 'message': '没有有效数据'})
+        
+        # 创建DataFrame
+        if HAS_PANDAS:
+            df = pd.DataFrame(rows, columns=business_columns)
+        else:
+            df = {"rows": rows, "columns": business_columns}
+        
+        # 生成导出文件名
+        safe_filename = filename.replace('.xlsx', '').replace('.xls', '').replace(' ', '_')
+        current_time = datetime.now()
+        date_str = current_time.strftime("%Y%m%d_%H%M%S")
+        
+        export_filename = f'{safe_filename}_{len(rows)}条_{date_str}.xlsx'
+        export_path = os.path.join('static/uploads', export_filename)
+        
+        # 确保导出目录存在
+        os.makedirs(os.path.dirname(export_path), exist_ok=True)
+        
+        # 使用openpyxl写入Excel
+        from openpyxl import Workbook
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = safe_filename[:31]
+        
+        # 写入数据
+        for r in dataframe_to_rows(df, index=False, header=True):
+            ws.append(r)
+        
+        # 应用样式
+        apply_enhanced_excel_styling(ws, len(business_columns), len(rows))
+        
+        # 保存文件
+        wb.save(export_path)
+        
+        print(f"[系统] 文件导出成功: {export_filename}, 共导出 {len(rows)} 条记录")
+        
+        return send_file(export_path, as_attachment=True, download_name=export_filename)
+        
+    except Exception as e:
+        print(f"[错误] 导出文件数据时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/uploaded-files/<filename>/delete', methods=['DELETE'])
+def delete_file_data(filename):
+    """删除特定文件的所有数据"""
+    try:
+        print(f"[系统] 开始删除文件 {filename} 的数据")
+        
+        # 删除该文件的所有数据记录
+        deleted_count = TableData.query.filter_by(source_file=filename).delete()
+        
+        # 删除上传历史记录
+        UploadHistory.query.filter_by(filename=filename).delete()
+        
+        db.session.commit()
+        
+        print(f"[系统] 文件 {filename} 删除成功，删除了 {deleted_count} 条数据记录")
+        return jsonify({
+            'success': True,
+            'message': f'文件删除成功，共删除 {deleted_count} 条记录'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"[错误] 删除文件数据时出错: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
 # 旧的清空数据接口已移除，使用 /clear-all 代替
 
 @app.route('/column/add', methods=['POST'])
@@ -790,6 +987,145 @@ def rename_table_group():
     except Exception as e:
         db.session.rollback()
         print(f"[错误] 重命名表格时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/table-groups/<int:group_id>/delete', methods=['DELETE'])
+def delete_table_group(group_id):
+    """删除指定的表格分组"""
+    try:
+        from models.database import TableGroup, ColumnMapping
+        
+        # 查找表格分组
+        table_group = TableGroup.query.get(group_id)
+        if not table_group:
+            return jsonify({'success': False, 'message': '表格不存在'})
+        
+        print(f"[系统] 开始删除表格分组: {table_group.group_name}")
+        
+        # 删除关联的数据记录
+        TableData.query.filter_by(table_group_id=group_id).delete()
+        
+        # 删除关联的表格结构
+        TableSchema.query.filter_by(table_group_id=group_id).delete()
+        
+        # 删除关联的列映射
+        ColumnMapping.query.filter_by(table_group_id=group_id).delete()
+        
+        # 删除表格分组本身
+        db.session.delete(table_group)
+        
+        db.session.commit()
+        
+        print(f"[系统] 表格分组删除成功: {table_group.group_name}")
+        return jsonify({'success': True, 'message': '表格删除成功'})
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"[错误] 删除表格分组时出错: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/table-groups/<int:group_id>/export')
+def export_single_group(group_id):
+    """导出指定表格分组"""
+    try:
+        from models.database import TableGroup
+        
+        # 验证分组是否存在
+        group = TableGroup.query.get(group_id)
+        if not group:
+            return jsonify({'success': False, 'message': '表格不存在'})
+        
+        print(f"[系统] 开始导出表格分组: {group.group_name}")
+        
+        # 获取该分组的数据
+        data_records = TableData.query.filter_by(table_group_id=group_id).order_by(TableData.created_at.asc()).all()
+        
+        if not data_records:
+            return jsonify({'success': False, 'message': '表格中没有数据'})
+            
+        # 获取该分组的表格结构
+        schemas = TableSchema.query.filter_by(table_group_id=group_id, is_active=True).order_by(TableSchema.column_order).all()
+        schema_columns = [s.column_name for s in schemas]
+        
+        # 系统字段列表（不应该出现在导出中）
+        system_fields = {'id', 'source_file', 'created_at', 'updated_at', 'table_group_id'}
+        
+        # 过滤掉系统字段
+        business_columns = [col for col in schema_columns if col not in system_fields and col.strip()]
+        
+        if not business_columns:
+            return jsonify({'success': False, 'message': '没有可导出的数据列'})
+        
+        # 准备数据
+        rows = []
+        for record in data_records:
+            row = {}
+            has_data = False
+            
+            for col in business_columns:
+                value = getattr(record, col, '') if hasattr(record, col) else record.to_dict().get(col, '')
+                
+                # 清理数据
+                if value is not None:
+                    value = str(value).strip()
+                else:
+                    value = ''
+                row[col] = value
+                
+                # 检查是否有有效数据
+                if value and value != '':
+                    has_data = True
+            
+            if has_data:
+                rows.append(row)
+        
+        if not rows:
+            return jsonify({'success': False, 'message': '没有有效数据'})
+        
+        # 创建DataFrame
+        if HAS_PANDAS:
+            df = pd.DataFrame(rows, columns=business_columns)
+        else:
+            # 简单的数据结构替代pandas
+            df = {"rows": rows, "columns": business_columns}
+        
+        # 生成导出文件
+        safe_group_name = group.group_name.replace('表格组_', '').replace('_', '-')
+        current_time = datetime.now()
+        date_str = current_time.strftime("%Y%m%d_%H%M%S")
+        
+        export_filename = f'{safe_group_name}_{len(rows)}条_{date_str}.xlsx'
+        export_path = os.path.join('static/uploads', export_filename)
+        
+        # 确保导出目录存在
+        os.makedirs(os.path.dirname(export_path), exist_ok=True)
+        
+        # 使用openpyxl写入Excel
+        from openpyxl import Workbook
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = safe_group_name[:31]  # Excel工作表名称长度限制
+        
+        # 写入数据
+        for r in dataframe_to_rows(df, index=False, header=True):
+            ws.append(r)
+        
+        # 应用样式
+        apply_enhanced_excel_styling(ws, len(business_columns), len(rows))
+        
+        # 保存文件
+        wb.save(export_path)
+        
+        print(f"[系统] 表格导出成功: {export_filename}, 共导出 {len(rows)} 条记录")
+        
+        return send_file(export_path, as_attachment=True, download_name=export_filename)
+        
+    except Exception as e:
+        print(f"[错误] 导出表格分组时出错: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)})

@@ -404,9 +404,10 @@
 
         /* 主容器 */
         .main-container {
-            max-width: 1400px;
+            max-width: 1600px;  /* 增加最大宽度 */
             margin: 0 auto;
-            padding: 32px 24px;
+            padding: 20px 32px;  /* 增加内边距让界面更舒适 */
+            min-height: calc(100vh - 72px);
         }
 
         /* 页面标题区域 */
@@ -428,21 +429,54 @@
             line-height: 1.5;
         }
 
-        /* 网格布局 */
+        /* 优化的网格布局 */
         .main-grid {
             display: grid;
-            grid-template-columns: 1fr 320px;
-            gap: 32px;
+            grid-template-columns: 1fr 280px;  /* 减少侧边栏宽度，给主内容更多空间 */
+            gap: 32px;  /* 增加间距让布局更透气 */
+            min-height: calc(100vh - 140px);  /* 使用min-height而不是固定height */
+            align-items: start;  /* 顶部对齐 */
+        }
+
+        /* 中等宽度屏幕优化（针对100%缩放时的常见问题） */
+        @media (max-width: 1400px) {
+            .main-grid {
+                grid-template-columns: 1fr 260px;  /* 进一步减少侧边栏宽度 */
+                gap: 28px;
+            }
+            
+            .main-container {
+                padding: 18px 28px;
+            }
+            
+            /* 中等屏幕表格高度优化 */
+            .table-wrapper {
+                max-height: calc(100vh - 410px);  /* 中等屏幕：导航72px + 容器36px + 间距28px + 上传区域190px + 表格头70px + 安全边距14px */
+            }
+            
+            .upload-card.collapsed ~ .card .table-wrapper {
+                max-height: calc(100vh - 280px);  /* 中等屏幕折叠后：导航72px + 容器36px + 间距28px + 上传折叠60px + 表格头70px + 安全边距14px */
+            }
+            
+            /* 确保表格在中等屏幕上也能正常显示 */
+            table {
+                min-width: 550px;  /* 中等屏幕适中的表格宽度 */
+            }
         }
 
         /* 响应式设计 */
         @media (max-width: 1200px) {
             .main-grid {
                 grid-template-columns: 1fr;
+                gap: 24px;
             }
             
             .sidebar {
-                order: -1;
+                order: -1;  /* 将侧边栏移到顶部 */
+            }
+            
+            .content-section {
+                grid-template-rows: auto 1fr;  /* 保持网格布局 */
             }
             
             .nav-container {
@@ -456,6 +490,10 @@
             .nav-link {
                 padding: 10px 16px;
                 font-size: 13px;
+            }
+            
+            .main-container {
+                padding: 16px 24px;
             }
         }
 
@@ -499,12 +537,37 @@
                 font-size: 18px;
             }
             
-
+            /* 移动端主容器优化 */
+            .main-container {
+                padding: 16px;
+            }
+            
+            .main-grid {
+                gap: 20px;
+                min-height: calc(100vh - 100px);
+            }
+            
+            .content-section {
+                gap: 20px;
+                grid-template-rows: auto 1fr;
+            }
+            
+            /* 移动端表格优化 */
+            .table-wrapper {
+                min-height: 250px;  /* 移动端减少最小高度 */
+                max-height: calc(100vh - 350px);  /* 移动端精确计算：导航60px + 容器32px + 间距24px + 上传区域150px + 表格头60px + 安全边距24px */
+            }
+            
+            /* 移动端上传区域优化 */
+            .upload-card.collapsed ~ .card .table-wrapper {
+                max-height: calc(100vh - 220px);  /* 移动端折叠后：导航60px + 容器32px + 间距24px + 上传折叠50px + 表格头60px + 安全边距-6px = 220px */
+            }
             
             .toolbar {
                 flex-direction: column;
                 align-items: stretch;
                 gap: 12px;
+                padding: 16px 20px;
             }
             
             .toolbar-left,
@@ -528,8 +591,30 @@
                 min-width: auto;
             }
             
-            .main-container {
-                padding: 20px 16px;
+            /* 移动端控制台优化 */
+            .console {
+                height: 100px;
+                font-size: 11px;
+            }
+            
+            /* 移动端通知优化 */
+            .notification-container {
+                top: 70px;
+                right: 16px;
+                left: 16px;
+                max-width: none;
+                min-width: unset;
+            }
+            
+            .notification {
+                margin-bottom: 8px;
+                padding: 18px 20px;
+                min-height: 65px;
+            }
+            
+            /* 移动端表格响应式优化 */
+            table {
+                min-width: 500px;  /* 移动端进一步减少表格最小宽度 */
             }
         }
 
@@ -557,8 +642,6 @@
                 font-size: 16px;
             }
             
-
-            
             .nav-menu-mobile {
                 top: 56px;
                 padding: 16px 20px;
@@ -569,8 +652,60 @@
                 font-size: 15px;
             }
             
+            /* 小屏设备优化 */
             .main-container {
+                padding: 12px;
+            }
+            
+            .main-grid {
+                gap: 16px;
+                min-height: calc(100vh - 80px);
+            }
+            
+            .content-section {
+                gap: 16px;
+            }
+            
+            /* 小屏表格优化 */
+            .table-wrapper {
+                min-height: 200px;  /* 小屏设备进一步减少最小高度 */
+                max-height: calc(100vh - 300px);  /* 小屏设备精确计算：导航56px + 容器24px + 间距20px + 上传区域130px + 表格头50px + 安全边距20px */
+            }
+            
+            /* 小屏设备上传区域优化 */
+            .upload-card.collapsed ~ .card .table-wrapper {
+                max-height: calc(100vh - 190px);  /* 小屏设备折叠后：导航56px + 容器24px + 间距20px + 上传折叠40px + 表格头50px = 190px */
+            }
+            
+            /* 小屏控制台优化 */
+            .console {
+                height: 80px;
+                font-size: 10px;
+                padding: 8px 12px;
+            }
+            
+            /* 小屏上传区域优化 */
+            .upload-zone {
                 padding: 16px 12px;
+            }
+            
+            .upload-icon {
+                width: 32px;
+                height: 32px;
+                margin-bottom: 8px;
+            }
+            
+            .upload-title {
+                font-size: 14px;
+            }
+            
+            .upload-desc {
+                font-size: 12px;
+            }
+            
+            /* 小屏设备表格优化 */
+            table {
+                min-width: 400px;  /* 小屏设备更小的表格最小宽度 */
             }
         }
 
@@ -683,28 +818,14 @@
             }
         }
 
-        /* 响应式通知 */
-        @media (max-width: 768px) {
-            .notification-container {
-                top: 70px;
-                right: 16px;
-                left: 16px;
-                max-width: none;
-                min-width: unset;
-            }
-            
-            .notification {
-                margin-bottom: 8px;
-                padding: 18px 20px;
-                min-height: 65px;
-            }
-        }
 
-        /* 内容区域 */
+
+        /* 内容区域 - 优化高度分配 */
         .content-section {
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
+            display: grid;
+            grid-template-rows: auto 1fr;  /* 上传区自适应，表格占主要空间 */
+            gap: 24px;  /* 增加间距让布局更透气 */
+            min-height: 0;  /* 允许子元素灵活缩放 */
         }
 
         /* 侧边栏 */
@@ -712,6 +833,7 @@
             display: flex;
             flex-direction: column;
             gap: 24px;
+            align-self: start;  /* 避免侧边栏被拉伸 */
         }
 
         /* 卡片样式 */
@@ -746,11 +868,132 @@
             padding: 24px;
         }
 
-        /* 上传区域 */
+        /* 可折叠上传区域样式 */
+        .upload-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .upload-header {
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+            transition: all 0.3s ease;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .upload-header:hover {
+            background: rgba(59, 130, 246, 0.02);
+        }
+
+        .upload-toggle-btn {
+            background: none;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+            outline: none;
+        }
+
+        .upload-toggle-btn:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            transform: scale(1.05);
+        }
+
+        .upload-toggle-btn:focus {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .upload-arrow {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .upload-card.collapsed .upload-arrow {
+            transform: rotate(-180deg);
+        }
+
+        .upload-body {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 300px;
+            overflow: hidden;
+        }
+
+        .upload-card.collapsed .upload-body {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            opacity: 0;
+        }
+
+        /* 折叠状态下的卡片样式 */
+        .upload-card.collapsed {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .upload-card.collapsed .upload-header {
+            border-bottom: none;
+            background: linear-gradient(135deg, #f8f9ff 0%, #f1f3f5 100%);
+        }
+
+        /* 折叠动画关键帧 */
+        @keyframes collapseUpload {
+            0% {
+                max-height: 300px;
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+            100% {
+                max-height: 0;
+                opacity: 0;
+            }
+        }
+
+        @keyframes expandUpload {
+            0% {
+                max-height: 0;
+                opacity: 0;
+            }
+            50% {
+                opacity: 0.5;
+            }
+            100% {
+                max-height: 300px;
+                opacity: 1;
+            }
+        }
+
+        /* 表格容器优化 - 确保充分利用可用空间 */
+        .table-wrapper {
+            overflow-x: auto;
+            overflow-y: auto;
+            position: relative;
+            border-radius: 0 0 12px 12px;
+            min-height: 300px;  /* 减少最小高度，避免小屏幕问题 */
+            max-height: calc(100vh - 420px);  /* 精确计算：导航72px + 容器36px + 间距32px + 上传区域200px + 表格头70px + 安全边距10px */
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* 当上传区域折叠时，表格获得更多空间 */
+        .upload-card.collapsed ~ .card .table-wrapper {
+            max-height: calc(100vh - 290px);  /* 折叠后精确计算：导航72px + 容器36px + 间距32px + 上传折叠60px + 表格头70px + 安全边距20px */
+        }
+
+        /* 上传区域 - 更紧凑的设计 */
         .upload-zone {
             border: 2px dashed #d1d5db;
             border-radius: 12px;
-            padding: 48px 24px;
+            padding: 24px 20px;  /* 进一步减少内边距 */
             text-align: center;
             transition: all 0.3s ease;
             cursor: pointer;
@@ -772,11 +1015,11 @@
         }
 
         .upload-icon {
-            width: 64px;
-            height: 64px;
-            margin: 0 auto 20px;
+            width: 40px;  /* 进一步减小尺寸 */
+            height: 40px;  /* 进一步减小尺寸 */
+            margin: 0 auto 12px;  /* 减小间距 */
             background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-            border-radius: 16px;
+            border-radius: 10px;  /* 减小圆角 */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -789,16 +1032,17 @@
         }
 
         .upload-title {
-            font-size: 18px;
+            font-size: 16px;  /* 减小字体 */
             font-weight: 600;
             color: #1a1a1a;
-            margin-bottom: 8px;
+            margin-bottom: 6px;  /* 减小间距 */
         }
 
         .upload-desc {
             color: #666;
-            margin-bottom: 24px;
-            line-height: 1.5;
+            margin-bottom: 12px;  /* 减小间距 */
+            line-height: 1.4;  /* 减小行高 */
+            font-size: 14px;  /* 减小字体 */
         }
 
         /* 按钮系统 */
@@ -958,11 +1202,12 @@
 
         .table-wrapper {
             overflow-x: auto;
-            max-height: 600px;
             overflow-y: auto;
             position: relative;
             /* 确保sticky定位正常工作 */
             border-radius: 0 0 12px 12px;
+            min-height: 400px;  /* 设置最小高度确保表格有足够显示空间 */
+            max-height: 600px;  /* 限制最大高度避免占用过多空间 */
         }
         
         /* 确保表格不会超出容器 */
@@ -973,7 +1218,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 800px;
+            min-width: 600px;  /* 减少最小宽度，避免100%缩放时超出容器 */
             position: relative;
         }
 
@@ -1270,15 +1515,15 @@
             border: 2px solid #3b82f6;
         }
 
-        /* 控制台 */
+        /* 控制台 - 更紧凑的设计 */
         .console {
             background: #1a1a1a;
             color: #d4d4d4;
             border-radius: 8px;
-            padding: 16px;
+            padding: 12px 16px;  /* 减少内边距 */
             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
             font-size: 12px;
-            max-height: 240px;
+            height: 120px;  /* 固定高度，更紧凑 */
             overflow-y: auto;
         }
 
@@ -1471,6 +1716,102 @@
             justify-content: flex-end;
             margin-top: 20px;
         }
+
+        /* 表格管理样式 */
+        .table-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background: white;
+            transition: all 0.2s ease;
+        }
+
+        .table-item:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        }
+
+        .table-item-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            background: #fafafa;
+            border-radius: 7px 7px 0 0;
+        }
+
+        .table-item-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin: 0 0 4px 0;
+            cursor: pointer;
+        }
+
+        .table-item-info {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+
+        .table-item-actions {
+            padding: 8px 16px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            background: white;
+            border-radius: 0 0 7px 7px;
+        }
+
+        .table-action-btn {
+            padding: 4px 12px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .table-action-btn-view {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .table-action-btn-view:hover {
+            background: #5a6fd8;
+        }
+
+        .table-action-btn-export {
+            background: #10b981;
+            color: white;
+        }
+
+        .table-action-btn-export:hover {
+            background: #059669;
+        }
+
+        .table-action-btn-delete {
+            background: #ef4444;
+            color: white;
+        }
+
+        .table-action-btn-delete:hover {
+            background: #dc2626;
+        }
+
+        .table-action-btn-upload {
+            background: #6b7280;
+            color: white;
+            width: 100%;
+            margin-top: 8px;
+            text-align: center;
+            padding: 8px 16px;
+        }
+
+        .table-action-btn-upload:hover {
+            background: #374151;
+        }
     </style>
 </head>
 <body>
@@ -1514,12 +1855,17 @@
         <div class="main-grid">
             <!-- 主内容区 -->
             <div class="content-section">
-                <!-- 文件上传 -->
-                <div class="card">
-                    <div class="card-header">
+                <!-- 文件上传 - 可折叠 -->
+                <div class="card upload-card" id="uploadCard">
+                    <div class="card-header upload-header" onclick="toggleUploadArea()">
                         <h2 class="card-title">文件上传</h2>
+                        <button class="upload-toggle-btn" id="uploadToggleBtn" type="button" aria-label="展开/收起上传区域">
+                            <svg class="upload-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body upload-body" id="uploadBody">
                         <div class="upload-zone" id="uploadArea" onclick="document.getElementById('fileInput').click()">
                             <div class="upload-icon">
                                 <svg width="48" height="48" viewbox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1541,7 +1887,7 @@
                 </div>
 
                 <!-- 数据表格 -->
-                <div class="card">
+                <div class="card" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                     <div class="toolbar">
                         <div class="toolbar-left">
                             <div style="display: flex; align-items: center; gap: 12px;">
@@ -1568,7 +1914,7 @@
                         </div>
                     </div>
                     
-                    <div class="table-wrapper">
+                    <div class="table-wrapper" style="flex: 1; min-height: 0;">
                         <div id="loadingState" class="loading" style="display: none;">
                             <div class="spinner"></div>
                             <div>正在加载数据...</div>
@@ -1592,45 +1938,42 @@
                         </div>
                     </div>
                 </div>
+
+
+
+
             </div>
 
             <!-- 侧边栏 -->
             <div class="sidebar">
-                <!-- 数据统计 -->
+                <!-- 文件管理 -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">数据概览</h3>
+                        <h3 class="card-title">文件管理</h3>
                     </div>
                     <div class="card-body">
-                        <div class="stats-grid">
-                            <div class="stat-card">
-                                <div class="stat-value" id="totalRecords">0</div>
-                                <div class="stat-label">总记录</div>
+                        <div id="tableManagerContainer">
+                            <div id="loadingTables" class="loading" style="display: none; padding: 20px;">
+                                <div class="spinner"></div>
+                                <div style="font-size: 12px;">正在加载...</div>
                             </div>
-                            <div class="stat-card">
-                                <div class="stat-value" id="sourceFiles">0</div>
-                                <div class="stat-label">来源文件</div>
+                            <div id="noTablesMessage" style="text-align: center; color: #9ca3af; padding: 20px; font-size: 14px;">
+                                暂无上传文件
                             </div>
-                            <div class="stat-card">
-                                <div class="stat-value" id="totalColumns">0</div>
-                                <div class="stat-label">数据列</div>
+                            <div id="tablesListContainer" style="display: none;">
+                                <div id="tablesList"></div>
+                                <!-- 分页控件 -->
+                                <div id="paginationContainer" style="display: none; margin-top: 12px; text-align: center; padding: 8px 0; border-top: 1px solid #e5e7eb;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <button id="prevPageBtn" class="btn btn-secondary" onclick="changePage(-1)" style="font-size: 11px; padding: 4px 8px;">上页</button>
+                                        <span id="pageInfo" style="font-size: 11px; color: #6b7280;"></span>
+                                        <button id="nextPageBtn" class="btn btn-secondary" onclick="changePage(1)" style="font-size: 11px; padding: 4px 8px;">下页</button>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 8px; text-align: center;">
+                                    <button class="btn btn-secondary" onclick="refreshTablesList()" style="font-size: 12px; padding: 6px 12px;">刷新列表</button>
+                                </div>
                             </div>
-                        </div>
-                        <div style="text-align: center; color: #9ca3af; font-size: 12px; margin-top: 16px;">
-                            更新时间: <span id="lastUpdate">--</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 控制台 -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">系统日志</h3>
-                    </div>
-                    <div class="card-body" style="padding: 0;">
-                        <div id="console" class="console">
-                            <div class="log-entry log-system">[系统] DataMerge Pro 已启动</div>
-                            <div class="log-entry log-system">[系统] 等待用户操作...</div>
                         </div>
                     </div>
                 </div>
