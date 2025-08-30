@@ -1,0 +1,269 @@
+/* 跨浏览器兼容的下拉选择框样式 - 专门针对Safari等浏览器优化 */
+
+/* 基础重置 - 移除所有浏览器默认样式 */
+.cross-browser-select {
+    /* 移除原生外观 */
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    -o-appearance: none !important;
+    -ms-appearance: none !important;
+    appearance: none !important;
+    
+    /* 基础样式 */
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    color: #374151;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    outline: none;
+    padding: 8px 40px 8px 12px;
+    position: relative;
+    transition: all 0.2s ease;
+    width: auto;
+    min-width: 200px;
+    box-sizing: border-box;
+    
+    /* 自定义下拉箭头 - 使用SVG确保所有浏览器兼容 */
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    
+    /* Safari 特殊处理 */
+    -webkit-border-radius: 6px;
+    -webkit-box-sizing: border-box;
+    -webkit-background-clip: padding-box;
+}
+
+/* 悬停状态 */
+.cross-browser-select:hover {
+    border-color: #9ca3af;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+}
+
+/* 焦点状态 */
+.cross-browser-select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background-color: #ffffff;
+    outline: none;
+}
+
+/* 激活状态 */
+.cross-browser-select:active {
+    background-color: #ffffff;
+    transform: translateY(0px);
+}
+
+/* 禁用状态 */
+.cross-browser-select:disabled {
+    background-color: #f9fafb;
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+    border-color: #e5e7eb;
+}
+
+/* 选项样式 */
+.cross-browser-select option {
+    color: #374151;
+    background-color: #ffffff;
+    font-size: 14px;
+    padding: 8px 12px;
+    line-height: 1.5;
+}
+
+/* 选项悬停状态（支持的浏览器） */
+.cross-browser-select option:hover {
+    background-color: #f3f4f6;
+}
+
+/* 选项选中状态 */
+.cross-browser-select option:checked {
+    background-color: #3b82f6;
+    color: #ffffff;
+}
+
+/* Firefox 特殊处理 */
+@-moz-document url-prefix() {
+    .cross-browser-select {
+        padding-right: 30px;
+        background-position: right 8px center;
+        background-size: 14px;
+    }
+}
+
+/* Edge 和 IE 特殊处理 */
+.cross-browser-select::-ms-expand {
+    display: none;
+}
+
+/* Internet Explorer 10-11 */
+.cross-browser-select::-ms-value {
+    background-color: #ffffff;
+    color: #374151;
+}
+
+/* WebKit 浏览器 (Safari, Chrome) 特殊优化 */
+@supports (-webkit-appearance: none) {
+    .cross-browser-select {
+        -webkit-appearance: none !important;
+        -webkit-background-clip: padding-box;
+        background-color: #ffffff !important;
+    }
+    
+    .cross-browser-select:hover {
+        background-color: #ffffff !important;
+    }
+    
+    .cross-browser-select:focus {
+        background-color: #ffffff !important;
+    }
+}
+
+/* Safari 专门处理 - 确保白色背景 */
+@supports (-webkit-backdrop-filter: blur(1px)) {
+    .cross-browser-select {
+        background-color: #ffffff !important;
+        -webkit-background-color: #ffffff !important;
+    }
+    
+    .cross-browser-select:hover,
+    .cross-browser-select:focus,
+    .cross-browser-select:active {
+        background-color: #ffffff !important;
+        -webkit-background-color: #ffffff !important;
+    }
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+    .cross-browser-select {
+        min-width: auto;
+        width: 100%;
+        font-size: 16px; /* 防止 iOS Safari 自动缩放 */
+        padding: 12px 40px 12px 12px;
+        background-size: 18px;
+        background-position: right 12px center;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+    }
+}
+
+/* 小屏设备优化 */
+@media (max-width: 480px) {
+    .cross-browser-select {
+        padding: 10px 35px 10px 10px;
+        font-size: 16px;
+        background-size: 16px;
+        background-position: right 10px center;
+    }
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+    .cross-browser-select {
+        border: 2px solid #000000;
+        background-color: #ffffff;
+    }
+    
+    .cross-browser-select:focus {
+        border-color: #0000ff;
+        box-shadow: 0 0 0 2px #0000ff;
+    }
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+    .cross-browser-select {
+        background-color: #1f2937;
+        border-color: #374151;
+        color: #f9fafb;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f9fafb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+    }
+    
+    .cross-browser-select option {
+        background-color: #1f2937;
+        color: #f9fafb;
+    }
+    
+    .cross-browser-select:hover {
+        background-color: #374151;
+        border-color: #4b5563;
+    }
+    
+    .cross-browser-select:focus {
+        background-color: #1f2937;
+        border-color: #3b82f6;
+    }
+}
+
+/* 无障碍支持 */
+.cross-browser-select:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+}
+
+/* 键盘导航支持 */
+.cross-browser-select:focus-visible {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+/* 强制白色背景的额外保险 */
+.cross-browser-select,
+.cross-browser-select:hover,
+.cross-browser-select:focus,
+.cross-browser-select:active,
+.cross-browser-select:visited {
+    background-color: #ffffff !important;
+}
+
+/* Safari 14+ 特殊处理 */
+@supports (gap: 1rem) {
+    .cross-browser-select {
+        background-color: #ffffff !important;
+    }
+}
+
+/* 确保选项在所有浏览器中都是白色背景 */
+.cross-browser-select option {
+    background: #ffffff !important;
+    color: #374151 !important;
+}
+
+.cross-browser-select option:hover {
+    background: #f3f4f6 !important;
+}
+
+.cross-browser-select option:checked,
+.cross-browser-select option:selected {
+    background: #3b82f6 !important;
+    color: #ffffff !important;
+}
+
+/* 针对不同浏览器的特殊处理 */
+
+/* Chrome 和 Safari WebKit */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+    .cross-browser-select {
+        background-color: #ffffff !important;
+        -webkit-appearance: none !important;
+    }
+}
+
+/* Firefox 专门处理 */
+@-moz-document url-prefix() {
+    .cross-browser-select {
+        background-color: #ffffff !important;
+    }
+}
+
+/* 最终兜底 - 确保在所有情况下都是白色 */
+.cross-browser-select {
+    background: #ffffff !important;
+}
