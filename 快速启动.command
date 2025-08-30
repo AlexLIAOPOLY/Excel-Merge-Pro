@@ -36,8 +36,18 @@ fi
 # 激活虚拟环境并安装依赖
 echo "📥 正在安装依赖..."
 source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+
+# 检查虚拟环境是否正确激活
+if [ ! -f "venv/bin/pip" ]; then
+    echo "❌ 虚拟环境pip未找到，重新创建虚拟环境..."
+    rm -rf venv
+    $PYTHON_CMD -m venv venv
+    source venv/bin/activate
+fi
+
+# 使用绝对路径调用pip
+venv/bin/pip install --upgrade pip
+venv/bin/pip install -r requirements.txt
 echo "✅ 依赖安装完成"
 
 # 启动应用
@@ -60,7 +70,8 @@ echo "⚠️  按 Ctrl+C 停止服务器"
 echo ""
 
 export FLASK_ENV=development
-python $APP_FILE
+source venv/bin/activate
+venv/bin/python $APP_FILE
 
 echo ""
 echo "服务器已停止"
