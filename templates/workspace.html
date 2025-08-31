@@ -19,16 +19,24 @@
             min-height: 100vh;
         }
 
-        /* 导航栏 */
+        /* 导航栏 - 现代化升级版 */
         .navbar {
             background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px) saturate(180%);
             border-bottom: 1px solid rgba(0, 0, 0, 0.08);
             position: sticky;
             top: 0;
             z-index: 1000;
             height: 72px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            animation: navSlideDown 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .navbar.scrolled {
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            height: 64px;
         }
 
         .nav-container {
@@ -39,6 +47,7 @@
             align-items: center;
             justify-content: space-between;
             padding: 0 32px;
+            transition: padding 0.3s ease;
         }
 
         .nav-brand {
@@ -47,6 +56,11 @@
             gap: 16px;
             text-decoration: none;
             color: #1a1a1a;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .nav-brand:hover {
+            transform: translateY(-1px);
         }
 
         .nav-logo {
@@ -60,21 +74,66 @@
             color: white;
             font-weight: 700;
             font-size: 18px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .nav-logo::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.6s ease;
+        }
+
+        .nav-logo:hover::before {
+            left: 100%;
+        }
+
+        .nav-logo:hover {
+            transform: rotate(5deg) scale(1.05);
+            box-shadow: 0 6px 25px rgba(59, 130, 246, 0.4);
+            animation: logoGlow 2s ease-in-out infinite;
         }
 
         .nav-title {
             font-size: 22px;
             font-weight: 700;
+            letter-spacing: -0.02em;
             background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            background-size: 200% 200%;
+            transition: all 0.3s ease;
+            animation: gradientMove 3s ease infinite;
         }
 
         .nav-menu {
             display: flex;
             align-items: center;
             gap: 8px;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        
+        .nav-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .nav-tools {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 24px;
+            border-left: 1px solid rgba(0, 0, 0, 0.08);
+            padding-left: 24px;
         }
 
         .nav-link {
@@ -84,17 +143,102 @@
             font-weight: 500;
             padding: 12px 20px;
             border-radius: 10px;
-            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateZ(0);
+        }
+
+        .nav-link::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(29, 78, 216, 0.1) 100%);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 10px;
+        }
+
+        .nav-link:hover::before {
+            opacity: 1;
+            transform: scale(1);
         }
 
         .nav-link:hover {
             color: #333;
-            background: rgba(59, 130, 246, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
         .nav-link.active {
             color: #3b82f6;
             background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(29, 78, 216, 0.15) 100%);
+            box-shadow: 0 2px 10px rgba(59, 130, 246, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 20px;
+            height: 2px;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            border-radius: 1px;
+            transform: translateX(-50%);
+            animation: activeSlide 0.3s ease;
+        }
+
+        @keyframes activeSlide {
+            0% { 
+                width: 0; 
+                opacity: 0;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% { 
+                width: 20px; 
+                opacity: 1;
+            }
+        }
+
+        /* 页面加载动画 */
+        @keyframes navSlideDown {
+            0% {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            100% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes logoGlow {
+            0%, 100% {
+                box-shadow: 0 6px 25px rgba(59, 130, 246, 0.4);
+            }
+            50% {
+                box-shadow: 0 8px 35px rgba(59, 130, 246, 0.6);
+            }
+        }
+
+        @keyframes gradientMove {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         /* 主容器 */
@@ -563,6 +707,11 @@
 
         /* 响应式设计 */
         @media (max-width: 768px) {
+            .nav-tools {
+                margin-left: 16px;
+                padding-left: 16px;
+            }
+            
             .main-container {
                 padding: 16px;
             }
@@ -617,10 +766,14 @@
             </a>
             
             <div class="nav-menu">
-                <a href="/" class="nav-link">数据合并</a>
-                <a href="/workspace" class="nav-link active">我的工作台</a>
-                <a href="#" class="nav-link">数据分析</a>
-                <a href="#" class="nav-link">使用帮助</a>
+                <div class="nav-main">
+                    <a href="/" class="nav-link">数据合并</a>
+                    <a href="#" class="nav-link">数据分析</a>
+                </div>
+                <div class="nav-tools">
+                    <a href="/workspace" class="nav-link active">工作台</a>
+                    <a href="#" class="nav-link">使用帮助</a>
+                </div>
             </div>
         </div>
     </nav>
@@ -743,10 +896,29 @@
         let currentEditingFile = null;
         let filteredFiles = []; // 筛选后的文件列表
 
+        // 导航栏滚动动画
+        let lastScrollY = window.scrollY;
+        const navbar = document.querySelector('.navbar');
+
+        function handleScroll() {
+            const scrollY = window.scrollY;
+            
+            if (scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+            
+            lastScrollY = scrollY;
+        }
+
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             loadFiles();
             initializeFilters();
+            
+            // 添加滚动事件监听器
+            window.addEventListener('scroll', handleScroll, { passive: true });
         });
 
         // 初始化筛选器

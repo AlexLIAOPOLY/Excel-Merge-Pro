@@ -151,6 +151,21 @@
             gap: 8px;
             transition: opacity 0.3s ease, transform 0.3s ease;
         }
+        
+        .nav-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .nav-tools {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 24px;
+            border-left: 1px solid rgba(0, 0, 0, 0.08);
+            padding-left: 24px;
+        }
 
         .nav-link {
             color: #666;
@@ -540,6 +555,11 @@
             
             .nav-menu {
                 display: none;
+            }
+            
+            .nav-tools {
+                margin-left: 16px;
+                padding-left: 16px;
             }
             
             .nav-toggle {
@@ -2430,10 +2450,14 @@
             
             <!-- 桌面端菜单 -->
             <div class="nav-menu">
-                <a href="/" class="nav-link active">数据合并</a>
-                <a href="/workspace" class="nav-link">我的工作台</a>
-                <a href="#" class="nav-link">数据分析</a>
-                <a href="#" class="nav-link">使用帮助</a>
+                <div class="nav-main">
+                    <a href="/" class="nav-link active">数据合并</a>
+                    <a href="#" class="nav-link">数据分析</a>
+                </div>
+                <div class="nav-tools">
+                    <a href="/workspace" class="nav-link">工作台</a>
+                    <a href="#" class="nav-link">使用帮助</a>
+                </div>
             </div>
             
             <!-- 移动端汉堡菜单按钮 -->
@@ -2448,8 +2472,8 @@
     <!-- 移动端菜单 -->
     <div class="nav-menu-mobile" id="navMenuMobile">
         <a href="/" class="nav-link active">数据合并</a>
-        <a href="/workspace" class="nav-link">我的工作台</a>
         <a href="#" class="nav-link">数据分析</a>
+        <a href="/workspace" class="nav-link">工作台</a>
         <a href="#" class="nav-link">使用帮助</a>
     </div>
 
