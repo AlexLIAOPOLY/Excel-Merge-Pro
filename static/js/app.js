@@ -5,6 +5,11 @@ let currentSchema = [];
 let tableGroups = [];
 let currentGroupId = null;
 
+// 全局搜索状态变量
+let isGlobalSearchActive = false;
+let currentGlobalSearchTerm = '';
+let currentStats = null;
+
 
 // 控制台日志函数 - 修复：处理控制台元素不存在的情况
 function addConsoleLog(message, type = 'system') {
@@ -36,6 +41,21 @@ function addConsoleLog(message, type = 'system') {
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     addConsoleLog('DataMerge Pro 系统初始化完成', 'system');
+    
+    // 检查URL参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const fileParam = urlParams.get('file');
+    if (fileParam) {
+        // 如果是数字，说明是旧的group ID方式
+        if (/^\d+$/.test(fileParam)) {
+            currentGroupId = parseInt(fileParam);
+            addConsoleLog(`从工作台跳转，将加载分组ID: ${currentGroupId}`, 'system');
+        } else {
+            // 如果不是数字，说明是文件名方式
+            window.currentFileName = decodeURIComponent(fileParam);
+            addConsoleLog(`从工作台跳转，将加载文件: ${window.currentFileName}`, 'system');
+        }
+    }
     
     initializeEventListeners();
     initializeNavbar();
@@ -186,20 +206,64 @@ function initializeEventListeners() {
         }, 300); // 300ms延迟，避免过于频繁的搜索
     });
     
-    // 拖拽上传
+    // 搜索模式切换事件
+    const searchMode = document.getElementById('searchMode');
+    searchMode.addEventListener('change', function() {
+        // 当切换搜索模式时，重新执行搜索
+        if (searchInput.value.trim()) {
+            searchData();
+        }
+        updateSearchPlaceholder();
+    });
+    
+    // 初始化搜索框占位符
+    updateSearchPlaceholder();
+    
+    // 增强的拖拽上传功能
     uploadArea.addEventListener('dragover', function(e) {
         e.preventDefault();
+        e.stopPropagation();
         this.classList.add('dragover');
+        
+        // 显示拖拽提示
+        const title = this.querySelector('.upload-title');
+        const desc = this.querySelector('.upload-desc');
+        if (title && desc) {
+            title.textContent = '释放文件以开始上传';
+            desc.innerHTML = '支持批量拖拽多个Excel文件<br/>系统将自动处理并合并数据';
+        }
     });
     
     uploadArea.addEventListener('dragleave', function(e) {
         e.preventDefault();
+        e.stopPropagation();
+        
+        // 检查是否真的离开了拖拽区域（避免子元素触发）
+        if (!this.contains(e.relatedTarget)) {
         this.classList.remove('dragover');
+            
+            // 恢复原始文本
+            const title = this.querySelector('.upload-title');
+            const desc = this.querySelector('.upload-desc');
+            if (title && desc) {
+                title.textContent = '拖拽Excel文件到此处上传';
+                desc.innerHTML = '支持 .xlsx 和 .xls 格式，单文件最大 32MB<br/>支持批量拖拽上传多个文件';
+            }
+        }
     });
     
     uploadArea.addEventListener('drop', function(e) {
         e.preventDefault();
+        e.stopPropagation();
         this.classList.remove('dragover');
+        
+        // 恢复原始文本  
+        const title = this.querySelector('.upload-title');
+        const desc = this.querySelector('.upload-desc');
+        if (title && desc) {
+            title.textContent = '拖拽Excel文件到此处上传';
+            desc.innerHTML = '支持 .xlsx 和 .xls 格式，单文件最大 32MB<br/>支持批量拖拽上传多个文件';
+        }
         
         const files = Array.from(e.dataTransfer.files);
         const excelFiles = files.filter(file => 
@@ -208,15 +272,14 @@ function initializeEventListeners() {
         );
         
         if (excelFiles.length > 0) {
-            const dt = new DataTransfer();
-            excelFiles.forEach(file => dt.items.add(file));
-            fileInput.files = dt.files;
-            
             addConsoleLog(`通过拖拽选择了 ${excelFiles.length} 个Excel文件，开始自动上传`, 'system');
-            // 直接自动上传，不显示文件列表
-            uploadFiles();
+            showNotification('开始上传', `正在处理 ${excelFiles.length} 个Excel文件...`, 'info');
+            
+            // 直接上传拖拽的文件
+            uploadDraggedFiles(excelFiles);
         } else {
             addConsoleLog('请选择Excel文件 (.xlsx 或 .xls)', 'warning');
+            showNotification('文件格式错误', '请拖拽Excel文件（.xlsx 或 .xls格式）', 'error');
         }
     });
 }
@@ -299,6 +362,46 @@ async function uploadFiles() {
     }
 }
 
+// 处理拖拽文件上传
+async function uploadDraggedFiles(files) {
+    if (!files || files.length === 0) {
+        addConsoleLog('没有可上传的文件', 'warning');
+        return;
+    }
+    
+    addConsoleLog(`开始上传 ${files.length} 个拖拽文件...`, 'system');
+    
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+        formData.append('files[]', files[i]);
+    }
+    
+    // 显示上传状态
+    addConsoleLog('文件上传中...', 'system');
+    
+    try {
+        const response = await fetch('/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        displayUploadResults(result.results);
+        
+        // 刷新表格列表和数据
+        await Promise.all([
+            loadTableList(),
+            loadTablesList()  // 刷新文件管理列表
+        ]);
+        
+    } catch (error) {
+        addConsoleLog(`拖拽上传失败: ${error.message}`, 'error');
+        showNotification('上传失败', error.message, 'error');
+    } finally {
+        addConsoleLog('拖拽文件上传完成', 'system');
+    }
+}
+
 // 显示上传结果 - 改为右侧弹窗形式
 function displayUploadResults(results) {
     let totalSuccess = 0;
@@ -357,6 +460,295 @@ function displayUploadResults(results) {
     }
 }
 
+// 从工作台导入文件
+async function openWorkspaceUpload() {
+    try {
+        // 获取工作台文件列表
+        const response = await fetch('/api/workspace/files');
+        const data = await response.json();
+        
+        if (!data.success) {
+            showNotification('获取文件失败', data.message, 'error');
+            return;
+        }
+
+        const files = data.files;
+        if (files.length === 0) {
+            showNotification('工作台为空', '工作台中没有可导入的文件，请先上传文件到工作台', 'info');
+            return;
+        }
+
+        // 创建文件选择模态框
+        showWorkspaceFileModal(files);
+    } catch (error) {
+        console.error('获取工作台文件失败:', error);
+        showNotification('获取失败', '无法连接到工作台，请稍后重试', 'error');
+    }
+}
+
+// 显示工作台文件选择模态框
+function showWorkspaceFileModal(files) {
+    // 对文件进行排序：已导入的文件(has_data=true)排在前面
+    const sortedFiles = files.sort((a, b) => {
+        // 优先级：已导入 > 未导入
+        if (a.has_data && !b.has_data) return -1;
+        if (!a.has_data && b.has_data) return 1;
+        
+        // 如果状态相同，按记录数排序（多的在前）
+        if (a.records !== b.records) {
+            return b.records - a.records;
+        }
+        
+        // 最后按文件名排序
+        return a.name.localeCompare(b.name);
+    });
+
+    // 创建模态框HTML
+    const modal = document.createElement('div');
+    modal.className = 'workspace-modal-overlay';
+    modal.innerHTML = `
+        <div class="workspace-modal">
+            <div class="workspace-modal-header">
+                <h3>从工作台导入文件</h3>
+                <button class="workspace-modal-close" onclick="closeWorkspaceModal()">&times;</button>
+            </div>
+            <div class="workspace-modal-body">
+                <div class="workspace-file-list">
+                    ${sortedFiles.map((file, index) => `
+                        <div class="workspace-file-item" 
+                             data-file-name="${file.name}" 
+                             data-file-path="${file.path}"
+                             data-index="${index}">
+                            <input type="checkbox" class="workspace-file-checkbox" id="file-${index}">
+                            <label for="file-${index}" class="workspace-file-label">
+                                <div class="workspace-file-info">
+                                    <div class="workspace-file-name">
+                                        ${file.name}
+                                    </div>
+                                    <div class="workspace-file-details">
+                                        <span class="file-folder">${file.folder}</span> | 
+                                        <span class="file-size">${file.size_formatted}</span> | 
+                                        <span class="file-records">${file.records}条记录</span> | 
+                                        <span class="file-status ${file.has_data ? 'has-data' : 'no-data'}">${file.has_data ? '已导入' : '未导入'}</span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="workspace-modal-footer">
+                <span id="selectedFileCount">已选择 0 个文件</span>
+                <div class="workspace-modal-actions">
+                    <button class="workspace-action-btn secondary" onclick="selectAllFiles()">全选</button>
+                    <button class="workspace-action-btn secondary" onclick="clearAllSelections()">清空</button>
+                    <button class="workspace-action-btn secondary" onclick="closeWorkspaceModal()">取消</button>
+                    <button class="workspace-action-btn primary" onclick="importSelectedFiles()">导入选中文件</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // 绑定复选框事件（支持Ctrl键多选）
+    bindWorkspaceCheckboxEvents();
+    
+    // 显示动画
+    setTimeout(() => modal.classList.add('show'), 10);
+}
+
+// 绑定工作台文件复选框事件
+function bindWorkspaceCheckboxEvents() {
+    const checkboxes = document.querySelectorAll('.workspace-file-checkbox');
+    const countElement = document.getElementById('selectedFileCount');
+    let lastSelectedIndex = -1;
+    
+    checkboxes.forEach((checkbox, index) => {
+        const fileItem = checkbox.closest('.workspace-file-item');
+        
+        // 复选框变化事件
+        checkbox.addEventListener('change', () => {
+            updateFileSelectionCount();
+        });
+        
+        // 点击文件项支持Ctrl键和Shift键多选
+        fileItem.addEventListener('click', (e) => {
+            // 如果点击的是复选框本身，让其正常处理
+            if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL') {
+                lastSelectedIndex = index;
+                return;
+            }
+            
+            e.preventDefault();
+            
+            if (e.ctrlKey || e.metaKey) {
+                // Ctrl键多选：切换当前项的选中状态
+                checkbox.checked = !checkbox.checked;
+                lastSelectedIndex = index;
+            } else if (e.shiftKey && lastSelectedIndex !== -1) {
+                // Shift键范围选择：选择从lastSelectedIndex到当前index的所有项
+                const start = Math.min(lastSelectedIndex, index);
+                const end = Math.max(lastSelectedIndex, index);
+                
+                for (let i = start; i <= end; i++) {
+                    if (checkboxes[i]) {
+                        checkboxes[i].checked = true;
+                    }
+                }
+            } else {
+                // 普通点击：清空其他选择，只选择当前项
+                checkboxes.forEach(cb => cb.checked = false);
+                checkbox.checked = true;
+                lastSelectedIndex = index;
+            }
+            
+            updateFileSelectionCount();
+        });
+        
+        // 双击文件项快速选择并导入
+        fileItem.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            // 清空其他选择，只选择当前项
+            checkboxes.forEach(cb => cb.checked = false);
+            checkbox.checked = true;
+            updateFileSelectionCount();
+            
+            // 延迟一点再导入，让用户看到选择效果
+            setTimeout(() => {
+                importSelectedFiles();
+            }, 100);
+        });
+    });
+    
+    // 初始化计数
+    updateFileSelectionCount();
+}
+
+// 更新文件选择计数
+function updateFileSelectionCount() {
+            const selectedCount = document.querySelectorAll('.workspace-file-checkbox:checked').length;
+    const totalCount = document.querySelectorAll('.workspace-file-checkbox').length;
+    const countElement = document.getElementById('selectedFileCount');
+    
+    if (countElement) {
+        countElement.textContent = `已选择 ${selectedCount} / ${totalCount} 个文件`;
+    }
+    
+    // 更新导入按钮状态
+    const importBtn = document.querySelector('.workspace-action-btn.primary');
+    if (importBtn) {
+        importBtn.disabled = selectedCount === 0;
+        if (selectedCount === 0) {
+            importBtn.textContent = '请选择文件';
+        } else {
+            importBtn.textContent = `导入选中文件 (${selectedCount})`;
+        }
+    }
+}
+
+// 全选文件
+function selectAllFiles() {
+    const checkboxes = document.querySelectorAll('.workspace-file-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateFileSelectionCount();
+}
+
+// 清空所有选择
+function clearAllSelections() {
+    const checkboxes = document.querySelectorAll('.workspace-file-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateFileSelectionCount();
+}
+
+// 关闭工作台模态框
+function closeWorkspaceModal() {
+    const modal = document.querySelector('.workspace-modal-overlay');
+    if (modal) {
+        modal.classList.add('closing');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+// 导入选中的文件
+async function importSelectedFiles() {
+    const selectedCheckboxes = document.querySelectorAll('.workspace-file-checkbox:checked');
+    
+    if (selectedCheckboxes.length === 0) {
+        showNotification('未选择文件', '请至少选择一个文件进行导入', 'warning');
+        return;
+    }
+
+    const selectedFiles = Array.from(selectedCheckboxes).map(checkbox => {
+        const fileItem = checkbox.closest('.workspace-file-item');
+        return {
+            name: fileItem.dataset.fileName,
+            path: fileItem.dataset.filePath
+        };
+    });
+
+    // 关闭模态框
+    closeWorkspaceModal();
+
+    // 导入文件
+    addConsoleLog(`开始从工作台导入 ${selectedFiles.length} 个文件...`, 'system');
+    
+    for (const file of selectedFiles) {
+        try {
+            addConsoleLog(`正在导入: ${file.name}`, 'info');
+            
+            const response = await fetch('/api/workspace/files/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    file_name: file.name,
+                    file_path: file.path
+                })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                addConsoleLog(`${file.name} 导入成功，共 ${result.count || 0} 条记录`, 'success');
+                showNotification('导入成功', `${file.name} 已成功导入`, 'success');
+            } else {
+                addConsoleLog(`${file.name} 导入失败: ${result.message}`, 'error');
+                showNotification('导入失败', `${file.name}: ${result.message}`, 'error');
+            }
+        } catch (error) {
+            console.error('导入文件失败:', error);
+            addConsoleLog(`${file.name} 导入失败: 网络错误`, 'error');
+            showNotification('导入失败', `${file.name}: 网络错误`, 'error');
+        }
+        
+        // 每个文件之间添加短暂延迟
+        await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    // 导入完成后刷新表格组列表并自动收起上传框
+    setTimeout(() => {
+        // 检查 loadTableGroups 函数是否存在
+        if (typeof loadTableGroups === 'function') {
+            loadTableGroups();
+        } else {
+            // 如果函数不存在，刷新页面数据
+            loadData();
+        }
+        
+        // 自动收起文件上传区域
+        collapseUploadArea(true); // 传入true表示静默折叠
+        
+        addConsoleLog('工作台文件导入完成，正在刷新数据...', 'system');
+        showNotification('导入完成', '文件上传区域已自动收起', 'success');
+    }, 500);
+}
+
 // 显示弹窗通知
 function showNotification(title, message, type = 'info') {
     const container = document.getElementById('notificationContainer');
@@ -373,23 +765,59 @@ function showNotification(title, message, type = 'info') {
         <div class="notification-progress"></div>
     `;
     
-    // 添加到容器
-    container.appendChild(notification);
+    // 添加到容器顶部（新通知在上方）
+    container.insertBefore(notification, container.firstChild);
+    
+    // 用于控制自动隐藏的变量
+    let autoHideTimer;
+    
+    // 鼠标悬停时暂停自动隐藏
+    notification.addEventListener('mouseenter', () => {
+        clearTimeout(autoHideTimer);
+    });
+    
+    // 鼠标离开时重新开始自动隐藏倒计时
+    notification.addEventListener('mouseleave', () => {
+        autoHideTimer = setTimeout(() => {
+            hideNotification(notification, container);
+        }, 1500);
+    });
     
     // 触发显示动画
     setTimeout(() => {
         notification.classList.add('show');
-    }, 10);
+    }, 50);
     
-    // 自动隐藏（1秒后开始隐藏动画）
+    // 根据消息类型设置不同的显示时长
+    const displayDuration = type === 'error' ? 4000 : type === 'success' ? 3000 : 2500;
+    
+    // 自动隐藏
+    autoHideTimer = setTimeout(() => {
+        hideNotification(notification, container);
+    }, displayDuration);
+}
+
+// 隐藏通知 - 两阶段动画
+function hideNotification(notification, container) {
+    // 防止重复触发隐藏
+    if (notification.classList.contains('hide') || notification.classList.contains('collapse')) {
+        return;
+    }
+    
+    // 第一阶段：向右滑出（保持高度）
+    notification.classList.add('hide');
+    
+    // 第二阶段：在滑出动画进行中途开始收缩高度
     setTimeout(() => {
-        notification.classList.add('hide');
+        notification.classList.add('collapse');
+        
+        // 动画完成后移除DOM元素
         setTimeout(() => {
             if (container.contains(notification)) {
                 container.removeChild(notification);
             }
-        }, 400); // 等待动画完成
-    }, 1000);
+        }, 400); // 等待收缩动画完成
+    }, 200); // 稍微提前开始收缩，让过渡更自然
 }
 
 // 加载数据
@@ -441,10 +869,9 @@ function showEmptyState() {
     emptyState.innerHTML = `
         <h3>暂无数据</h3>
         <p>请上传Excel文件开始使用</p>
-        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">上传第一个文件</button>
     `;
     
-    // 隐藏工具栏按钮
+    // 隐藏工具栏
     hideToolbarButtons();
 }
 
@@ -470,22 +897,22 @@ function showSearchEmptyState(searchTerm) {
         </div>
     `;
     
-    // 保持工具栏按钮显示
+    // 保持工具栏显示
     showToolbarButtons();
 }
 
-// 控制工具栏按钮的显示/隐藏
+// 控制工具栏的显示/隐藏
 function hideToolbarButtons() {
-    const toolbarRight = document.querySelector('.toolbar-right');
-    if (toolbarRight) {
-        toolbarRight.style.display = 'none';
+    const toolbar = document.querySelector('.toolbar');
+    if (toolbar) {
+        toolbar.style.display = 'none';
     }
 }
 
 function showToolbarButtons() {
-    const toolbarRight = document.querySelector('.toolbar-right');
-    if (toolbarRight) {
-        toolbarRight.style.display = 'flex';
+    const toolbar = document.querySelector('.toolbar');
+    if (toolbar) {
+        toolbar.style.display = 'flex';
     }
 }
 
@@ -556,7 +983,7 @@ function renderTable() {
     dataTable.style.display = 'table';
     emptyState.style.display = 'none';
     
-    // 显示工具栏按钮
+    // 显示工具栏
     showToolbarButtons();
     
     // 构建表头
@@ -900,24 +1327,376 @@ function ensureHeaderSticky() {
     addConsoleLog('表头固定功能已启用', 'system');
 }
 
+// 更新搜索框占位符
+function updateSearchPlaceholder() {
+    const searchInput = document.getElementById('searchInput');
+    const searchMode = document.getElementById('searchMode').value;
+    
+    if (searchMode === 'global') {
+        searchInput.placeholder = '全局搜索所有表格数据...（跨表格搜索）';
+    } else {
+        searchInput.placeholder = '搜索当前表格内容...（实时搜索）';
+    }
+}
+
 // 搜索数据
 function searchData() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+    const searchMode = document.getElementById('searchMode').value;
     
     if (!searchTerm) {
         filteredData = [...currentData];
         addConsoleLog('已清除搜索条件', 'system');
+        renderTable();
     } else {
-        filteredData = currentData.filter(row => {
-            // 搜索所有字段，包括列名和数据值
-            return searchInRow(row, searchTerm);
+        if (searchMode === 'global') {
+            // 全局搜索 - 搜索所有表格组
+            performGlobalSearch(searchTerm);
+        } else {
+            // 当前表格搜索
+            filteredData = currentData.filter(row => {
+                return searchInRow(row, searchTerm);
+            });
+            
+            addConsoleLog(`搜索 "${searchTerm}" 找到 ${filteredData.length} 条记录`, 'system');
+            renderTable();
+            highlightSearchResults(searchTerm);
+        }
+    }
+}
+
+// 全局搜索函数 - 修改版
+async function performGlobalSearch(searchTerm) {
+    try {
+        addConsoleLog(`开始全局搜索 "${searchTerm}"...`, 'system');
+        
+        // 显示加载状态
+        showLoadingState();
+        
+        // 调用新的全局搜索API
+        const response = await fetch('/api/global-search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ search_term: searchTerm })
         });
         
-        addConsoleLog(`搜索 "${searchTerm}" 找到 ${filteredData.length} 条记录`, 'system');
+        const result = await response.json();
+        
+        if (result.success) {
+            // 直接显示搜索结果表格
+            displayGlobalSearchResults(result);
+        } else {
+            addConsoleLog('全局搜索失败: ' + result.message, 'error');
+            showNotification('搜索错误', result.message, 'error');
+            hideLoadingState();
+        }
+        
+    } catch (error) {
+        console.error('全局搜索失败:', error);
+        addConsoleLog('全局搜索失败: ' + error.message, 'error');
+        showNotification('搜索错误', '全局搜索请求失败，请检查网络连接', 'error');
+        hideLoadingState();
+    }
+}
+
+// 全局搜索中的行匹配函数
+function searchInRowGlobal(row, searchTerm, schema) {
+    // 确保搜索词是小写
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    
+    // 搜索列名
+    for (let columnName of schema) {
+        if (columnName.toLowerCase().includes(lowerSearchTerm)) {
+            const value = row[columnName];
+            if (value != null && String(value).trim() !== '') {
+                return true;
+            }
+        }
     }
     
+    // 搜索数据值
+    for (let key in row) {
+        if (key === 'id' || key.startsWith('_')) continue;
+        
+        const value = row[key];
+        if (value != null) {
+            const valueStr = String(value).toLowerCase();
+            if (valueStr.includes(lowerSearchTerm)) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+// 显示全局搜索结果 - 新版本，直接渲染表格
+function displayGlobalSearchResults(searchResult) {
+    const { data, schema, search_term, total_matches, matched_groups, stats } = searchResult;
+    
+    if (total_matches === 0) {
+        addConsoleLog(`全局搜索 "${search_term}" 未找到匹配结果`, 'system');
+        showNotification('搜索结果', '未找到匹配的数据', 'info');
+        hideLoadingState();
+        return;
+    }
+    
+    // 记录当前搜索状态为全局搜索
+    isGlobalSearchActive = true;
+    currentGlobalSearchTerm = search_term;
+    
+    addConsoleLog(`全局搜索 "${search_term}" 在 ${matched_groups} 个表格中找到 ${total_matches} 条记录`, 'success');
+    
+    // 设置当前数据为搜索结果
+    currentData = data;
+    filteredData = [...data];
+    currentSchema = schema;
+    currentStats = stats;
+    
+    // 更新表格选择器显示为搜索结果
+    updateTableSelector(`全局搜索结果: "${search_term}" (${total_matches}条记录)`);
+    
+    // 更新导出按钮文本
+    updateExportButtonForGlobalSearch(total_matches);
+    
+    // 渲染表格
     renderTable();
-    highlightSearchResults(searchTerm);
+    hideLoadingState();
+    
+    // 高亮搜索关键词
+    highlightSearchResults(search_term);
+    
+    // 为来源信息列添加特殊样式
+    highlightSourceColumns();
+    
+    // 显示搜索结果通知
+    showNotification(
+        '全局搜索完成', 
+        `在 ${matched_groups} 个表格中找到 ${total_matches} 条匹配记录，已合并显示`, 
+        'success'
+    );
+    
+    // 添加全局搜索结果的特殊样式标识
+    addGlobalSearchIndicator();
+}
+
+// 更新表格选择器显示
+function updateTableSelector(displayText) {
+    const selector = document.getElementById('tableSelector');
+    if (selector) {
+        // 清空现有选项
+        selector.innerHTML = '';
+        
+        // 添加搜索结果选项
+        const option = document.createElement('option');
+        option.value = 'global_search_result';
+        option.textContent = displayText;
+        option.selected = true;
+        selector.appendChild(option);
+    }
+}
+
+// 重置搜索状态
+function resetGlobalSearchState() {
+    isGlobalSearchActive = false;
+    currentGlobalSearchTerm = '';
+    // 重置导出按钮
+    resetExportButton();
+    // 移除全局搜索标识
+    removeGlobalSearchIndicator();
+}
+
+// 更新导出按钮为全局搜索模式
+function updateExportButtonForGlobalSearch(matchCount) {
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+        exportBtn.textContent = `导出搜索结果 (${matchCount}条)`;
+        exportBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        exportBtn.title = '导出当前全局搜索结果到Excel';
+    }
+}
+
+// 重置导出按钮
+function resetExportButton() {
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+        exportBtn.textContent = '导出Excel';
+        exportBtn.style.background = '';
+        exportBtn.title = '导出所有表格数据到Excel';
+    }
+}
+
+// 添加全局搜索结果标识
+function addGlobalSearchIndicator() {
+    removeGlobalSearchIndicator(); // 先移除已有的
+    
+    // 不再添加任何标识，保持界面简洁
+    return;
+}
+
+// 移除全局搜索结果标识
+function removeGlobalSearchIndicator() {
+    const indicator = document.getElementById('globalSearchIndicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
+
+// 为来源信息列添加特殊样式
+function highlightSourceColumns() {
+    if (!isGlobalSearchActive) return;
+    
+    const table = document.getElementById('dataTable');
+    if (!table) return;
+    
+    // 找到来源信息列的索引
+    const headerCells = table.querySelectorAll('thead th');
+    const sourceColumnIndices = [];
+    
+    headerCells.forEach((th, index) => {
+        const columnTitle = th.querySelector('.column-title');
+        if (columnTitle && columnTitle.textContent.startsWith('_source_')) {
+            sourceColumnIndices.push(index);
+            
+            // 为表头添加特殊样式
+            th.style.background = 'linear-gradient(135deg, #e0f2fe 0%, #b3e5fc 100%)';
+            th.style.borderLeft = '3px solid #0288d1';
+            
+            // 更新列标题显示
+            if (columnTitle.textContent === '_source_table') {
+                columnTitle.textContent = '来源表格';
+            } else if (columnTitle.textContent === '_source_file') {
+                columnTitle.textContent = '来源文件';
+            }
+        }
+    });
+    
+    // 为数据行的来源列添加特殊样式
+    const dataRows = table.querySelectorAll('tbody tr');
+    dataRows.forEach(row => {
+        sourceColumnIndices.forEach(colIndex => {
+            const cell = row.children[colIndex];
+            if (cell) {
+                cell.style.background = 'rgba(224, 242, 254, 0.5)';
+                cell.style.borderLeft = '2px solid #0288d1';
+                cell.style.fontWeight = '500';
+                cell.style.color = '#0277bd';
+            }
+        });
+    });
+}
+
+// 显示加载状态
+function showLoadingState() {
+    const loadingState = document.getElementById('loadingState');
+    const dataTable = document.getElementById('dataTable');
+    const emptyState = document.getElementById('emptyState');
+    
+    if (loadingState) {
+        loadingState.style.display = 'flex';
+    }
+    if (dataTable) {
+        dataTable.style.display = 'none';
+    }
+    if (emptyState) {
+        emptyState.style.display = 'none';
+    }
+}
+
+// 隐藏加载状态
+function hideLoadingState() {
+    const loadingState = document.getElementById('loadingState');
+    const dataTable = document.getElementById('dataTable');
+    const emptyState = document.getElementById('emptyState');
+    
+    if (loadingState) {
+        loadingState.style.display = 'none';
+    }
+    
+    // 根据是否有数据决定显示表格还是空状态
+    if (currentData && currentData.length > 0) {
+        if (dataTable) {
+            dataTable.style.display = 'table';
+        }
+        if (emptyState) {
+            emptyState.style.display = 'none';
+        }
+    } else {
+        if (dataTable) {
+            dataTable.style.display = 'none';
+        }
+        if (emptyState) {
+            emptyState.style.display = 'block';
+        }
+    }
+}
+
+// 增强搜索输入框的用户体验
+function enhanceSearchInput() {
+    const searchInput = document.getElementById('searchInput');
+    const searchMode = document.getElementById('searchMode');
+    
+    if (searchInput && searchMode) {
+        // 监听搜索模式变化
+        searchMode.addEventListener('change', function() {
+            updateSearchPlaceholder();
+            
+            // 如果当前是全局搜索状态，但切换到了当前表格模式，需要重置
+            if (isGlobalSearchActive && this.value === 'current') {
+                resetSearch();
+            }
+        });
+        
+        // 在搜索输入框添加搜索状态提示
+        searchInput.addEventListener('focus', function() {
+            if (isGlobalSearchActive) {
+                showNotification(
+                    '搜索提示', 
+                    '当前显示全局搜索结果，可以继续在结果中筛选', 
+                    'info'
+                );
+            }
+        });
+        
+        // 支持回车键触发搜索
+        searchInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const searchTerm = searchInput.value.trim();
+                if (searchTerm) {
+                    searchData();
+                    addConsoleLog(`回车键执行搜索: "${searchTerm}"`, 'system');
+                }
+            }
+        });
+    }
+}
+
+// 切换到指定的表格组
+async function switchToTableGroup(groupId) {
+    closeGlobalSearchModal();
+    
+    // 更新URL和页面状态
+    const newUrl = new URL(window.location);
+    newUrl.searchParams.set('group_id', groupId);
+    window.history.pushState({}, '', newUrl);
+    
+    // 加载指定的表格组
+    await loadTableData(groupId);
+    
+    // 保持搜索词，但切换到当前表格模式
+    document.getElementById('searchMode').value = 'current';
+    updateSearchPlaceholder();
+    
+    // 重新执行当前表格搜索
+    const searchTerm = document.getElementById('searchInput').value.trim();
+    if (searchTerm) {
+        setTimeout(() => searchData(), 300);
+    }
+    
+    addConsoleLog(`已切换到表格: ${groupId}`, 'system');
 }
 
 // 智能搜索函数
@@ -1091,11 +1870,28 @@ function clearSearch() {
 function resetSearch() {
     const searchInput = document.getElementById('searchInput');
     searchInput.value = '';
+    
+    // 如果当前是全局搜索状态，需要切换回普通表格
+    if (isGlobalSearchActive) {
+        resetGlobalSearchState();
+        // 重新加载原来的表格数据
+        loadData();
+        // 切换搜索模式为当前表格
+        const searchMode = document.getElementById('searchMode');
+        if (searchMode) {
+            searchMode.value = 'current';
+            updateSearchPlaceholder();
+        }
+        addConsoleLog('已退出全局搜索模式并重置搜索条件', 'system');
+    } else {
+        // 普通的重置搜索
+        filteredData = [...currentData];
+        clearHighlights(); // 清除高亮
+        renderTable();
+        addConsoleLog('已重置搜索条件', 'system');
+    }
+    
     searchInput.focus(); // 聚焦到搜索框
-    filteredData = [...currentData];
-    clearHighlights(); // 清除高亮
-    renderTable();
-    addConsoleLog('已重置搜索条件', 'system');
 }
 
 // 刷新数据
@@ -1172,6 +1968,72 @@ async function exportData() {
 
 
 
+// 处理导出按钮点击
+async function handleExportClick() {
+    if (isGlobalSearchActive) {
+        // 导出全局搜索结果
+        await exportGlobalSearchResults();
+    } else {
+        // 导出所有表格分组
+        await exportAllGroups();
+    }
+}
+
+// 导出全局搜索结果
+async function exportGlobalSearchResults() {
+    if (!isGlobalSearchActive || !currentData || currentData.length === 0) {
+        addConsoleLog('没有全局搜索结果可导出', 'warning');
+        showNotification('导出错误', '没有搜索结果可导出', 'error');
+        return;
+    }
+    
+    addConsoleLog(`开始导出全局搜索结果 "${currentGlobalSearchTerm}"...`, 'system');
+    
+    try {
+        const response = await fetch('/api/export-global-search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                search_term: currentGlobalSearchTerm,
+                data: currentData,
+                schema: currentSchema
+            })
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // 构造文件名
+            const safeSearchTerm = currentGlobalSearchTerm.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
+            a.download = `全局搜索结果_${safeSearchTerm}_${currentData.length}条_${timestamp}.xlsx`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            addConsoleLog(`全局搜索结果导出成功，共 ${currentData.length} 条记录`, 'success');
+            showNotification('导出成功', `全局搜索结果已成功导出，共 ${currentData.length} 条记录`, 'success');
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.message || '导出失败';
+            addConsoleLog(`导出全局搜索结果失败: ${errorMessage}`, 'error');
+            showNotification('导出失败', errorMessage, 'error');
+        }
+        
+    } catch (error) {
+        console.error('导出全局搜索结果时发生错误:', error);
+        addConsoleLog(`导出全局搜索结果时发生错误: ${error.message}`, 'error');
+        showNotification('导出错误', '导出过程中发生错误，请检查网络连接', 'error');
+    }
+}
+
 // 导出所有表格分组
 async function exportAllGroups() {
     addConsoleLog('开始导出所有表格分组...', 'system');
@@ -1202,7 +2064,7 @@ async function exportAllGroups() {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
             
-            addConsoleLog(`✅ 所有表格导出成功: ${filename}`, 'system');
+            addConsoleLog(`所有表格导出成功: ${filename}`, 'system');
             showNotification('导出成功', `所有表格已导出: ${filename}`, 'success');
         } else {
             const errorData = await response.json();
@@ -1560,6 +2422,9 @@ async function loadTableList() {
                     document.getElementById('tableSelector').value = currentGroupId;
                     loadGroupData(currentGroupId);
                 }
+            } else if (window.currentFileName) {
+                // 如果是从工作台跳转的文件名，直接加载该文件数据
+                loadFileData(window.currentFileName);
             } else {
                 // 没有表格时显示空状态
                 showEmptyState();
@@ -1569,7 +2434,7 @@ async function loadTableList() {
                     total_columns: 0,
                     last_update: '--'
                 });
-                // 确保隐藏工具栏按钮
+                // 确保隐藏工具栏
                 hideToolbarButtons();
             }
             
@@ -1674,13 +2539,13 @@ function updateTableSelectorForSingleFile(filename, recordCount) {
         }
     };
     
-    addConsoleLog(`📋 表格标题已更新为: ${filename}`, 'system');
+    addConsoleLog(`表格标题已更新为: ${filename}`, 'system');
 }
 
 // 返回表格组模式
 async function backToTableGroups() {
     try {
-        addConsoleLog('🔄 正在返回总表...', 'system');
+        addConsoleLog('正在返回总表...', 'system');
         showNotification('正在加载总表...', 'info');
         
         // 重新加载表格组数据
@@ -1696,12 +2561,12 @@ async function backToTableGroups() {
             await loadGroupData(currentGroupId);
         }
         
-        addConsoleLog(`✅ 已返回总表，当前显示: ${tableGroups.length > 0 ? tableGroups[0].group_name : '无表格'}`, 'system');
+        addConsoleLog(`已返回总表，当前显示: ${tableGroups.length > 0 ? tableGroups[0].group_name : '无表格'}`, 'system');
         showNotification('已返回总表', 'success');
         
     } catch (error) {
         console.error('返回总表失败:', error);
-        addConsoleLog('❌ 返回总表失败: ' + error.message, 'error');
+        addConsoleLog('返回总表失败: ' + error.message, 'error');
         showNotification('返回总表失败: ' + error.message, 'error');
     }
 }
@@ -1782,7 +2647,7 @@ async function clearAllData() {
             // 同时刷新右侧文件管理列表
             await loadTablesList();
             
-            addConsoleLog('✅ 所有数据已清空', 'system');
+            addConsoleLog('所有数据已清空', 'system');
             showNotification('清空成功', '所有表格数据已清空', 'info');
         } else {
             addConsoleLog(`清空失败: ${result.message}`, 'error');
@@ -1880,8 +2745,70 @@ async function renameTableConfirm() {
 }
 
 // 兼容原有的loadData函数 - 重新加载表格列表
+// 加载特定文件的数据（从工作台跳转）
+async function loadFileData(fileName) {
+    addConsoleLog(`正在加载文件数据: ${fileName}`, 'system');
+    
+    try {
+        const response = await fetch(`/api/workspace/files/${encodeURIComponent(fileName)}/data`);
+        const result = await response.json();
+        
+        if (result.success) {
+            currentData = result.data || [];
+            filteredData = [...currentData];
+            currentSchema = result.schema || [];
+            
+            // 查找该文件对应的表格分组（通过API直接查询）
+            let groupInfo = null;
+            try {
+                const groupResponse = await fetch(`/api/workspace/files/${encodeURIComponent(fileName)}/group`);
+                const groupResult = await groupResponse.json();
+                if (groupResult.success && groupResult.group) {
+                    groupInfo = groupResult.group;
+                    currentGroupId = groupInfo.id;
+                }
+            } catch (e) {
+                addConsoleLog(`查找文件分组时出错: ${e.message}`, 'error');
+            }
+            
+            // 更新表格选择器
+            const selector = document.getElementById('tableSelector');
+            if (groupInfo) {
+                // 重新加载表格列表以确保选择器有正确的选项
+                await loadTableList();
+                selector.value = groupInfo.id;
+                addConsoleLog(`已切换到分组: ${groupInfo.group_name}`, 'system');
+            } else {
+                // 如果没有找到对应分组，显示文件名
+                selector.innerHTML = `<option value="file:${fileName}" selected>${fileName}</option>`;
+            }
+            
+            // 渲染表格
+            renderTable();
+            updateStats(result.stats);
+            
+            // 显示表格，隐藏空状态
+            document.getElementById('dataTable').style.display = 'table';
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('loadingState').style.display = 'none';
+            showToolbarButtons();
+            
+            addConsoleLog(`文件 ${fileName} 加载完成，共 ${currentData.length} 条记录`, 'system');
+        } else {
+            addConsoleLog(`加载文件数据失败: ${result.message}`, 'error');
+            showEmptyState();
+        }
+    } catch (error) {
+        addConsoleLog(`加载文件数据时发生错误: ${error.message}`, 'error');
+        showEmptyState();
+    }
+}
+
 async function loadData() {
-    if (currentGroupId) {
+    if (window.currentFileName) {
+        // 如果当前是文件模式，重新加载文件数据
+        await loadFileData(window.currentFileName);
+    } else if (currentGroupId) {
         await loadGroupData(currentGroupId);
     } else {
         await loadTableList();
@@ -2241,10 +3168,8 @@ function addTableScrollControl() {
 
 // ==================== 文件管理功能 ====================
 
-// 分页相关变量
+// 文件列表数据
 let filesData = [];
-let currentPage = 1;
-const filesPerPage = 3;  // 每页显示3个文件
 
 // 加载已上传文件列表
 async function loadTablesList() {
@@ -2264,7 +3189,6 @@ async function loadTablesList() {
         
         if (data.success && data.files && data.files.length > 0) {
             filesData = data.files;  // 保存所有文件数据
-            currentPage = 1;  // 重置到第一页
             renderFilesList();
             tablesListContainer.style.display = 'block';
             noTablesMessage.style.display = 'none';
@@ -2275,11 +3199,14 @@ async function loadTablesList() {
             tablesListContainer.style.display = 'none';
             addConsoleLog('暂无上传的文件', 'system');
         }
+        
+        loadingElement.style.display = 'none';
     } catch (error) {
         console.error('加载文件列表失败:', error);
         addConsoleLog('加载文件列表失败: ' + error.message, 'error');
         noTablesMessage.style.display = 'block';
         tablesListContainer.style.display = 'none';
+        loadingElement.style.display = 'none';
     } finally {
         loadingElement.style.display = 'none';
     }
@@ -2288,20 +3215,14 @@ async function loadTablesList() {
 // 渲染文件列表
 function renderFilesList() {
     const tablesList = document.getElementById('tablesList');
-    const paginationContainer = document.getElementById('paginationContainer');
     
     if (!filesData || filesData.length === 0) {
         tablesList.innerHTML = '';
-        paginationContainer.style.display = 'none';
         return;
     }
     
-    // 计算分页
-    const totalFiles = filesData.length;
-    const totalPages = Math.ceil(totalFiles / filesPerPage);
-    const startIndex = (currentPage - 1) * filesPerPage;
-    const endIndex = Math.min(startIndex + filesPerPage, totalFiles);
-    const currentFiles = filesData.slice(startIndex, endIndex);
+    // 显示所有文件，不再分页
+    const currentFiles = filesData;
     
     // 渲染当前页的文件
     let filesHtml = currentFiles.map(file => {
@@ -2347,77 +3268,9 @@ function renderFilesList() {
         `;
     }).join('');
     
-    // 在最后一页的末尾添加上传新文件的卡片
-    if (currentPage === totalPages) {
-        filesHtml += `
-            <div class="table-item" style="border: 2px dashed #d1d5db; background: #f9fafb;">
-                <div class="table-item-header" style="background: #f9fafb; border-bottom: none;">
-                    <div class="table-item-title" style="color: #6b7280; text-align: center;">
-                        上传新文件
-                    </div>
-                </div>
-                <div class="table-item-actions" style="padding: 12px 16px;">
-                    <button class="table-action-btn table-action-btn-upload" onclick="document.getElementById('fileInput').click()" title="上传新文件">
-                        选择文件上传
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-    
     tablesList.innerHTML = filesHtml;
-    
-    // 更新分页控件
-    updatePaginationControls(currentPage, totalPages, totalFiles);
 }
 
-// 更新分页控件
-function updatePaginationControls(page, totalPages, totalFiles) {
-    const paginationContainer = document.getElementById('paginationContainer');
-    const prevBtn = document.getElementById('prevPageBtn');
-    const nextBtn = document.getElementById('nextPageBtn');
-    const pageInfo = document.getElementById('pageInfo');
-    
-    if (totalPages <= 1) {
-        paginationContainer.style.display = 'none';
-        return;
-    }
-    
-    paginationContainer.style.display = 'block';
-    pageInfo.textContent = `${page}/${totalPages} (共${totalFiles}个文件)`;
-    
-    // 更新按钮状态
-    prevBtn.disabled = page <= 1;
-    nextBtn.disabled = page >= totalPages;
-    
-    if (page <= 1) {
-        prevBtn.style.opacity = '0.5';
-        prevBtn.style.cursor = 'not-allowed';
-    } else {
-        prevBtn.style.opacity = '1';
-        prevBtn.style.cursor = 'pointer';
-    }
-    
-    if (page >= totalPages) {
-        nextBtn.style.opacity = '0.5';
-        nextBtn.style.cursor = 'not-allowed';
-    } else {
-        nextBtn.style.opacity = '1';
-        nextBtn.style.cursor = 'pointer';
-    }
-}
-
-// 切换页码
-function changePage(direction) {
-    const totalPages = Math.ceil(filesData.length / filesPerPage);
-    const newPage = currentPage + direction;
-    
-    if (newPage >= 1 && newPage <= totalPages) {
-        currentPage = newPage;
-        renderFilesList();
-        addConsoleLog(`切换到第 ${currentPage} 页`, 'system');
-    }
-}
 
 // 查看文件内容
 async function viewFile(filename) {
@@ -2593,8 +3446,20 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
     initializeNavbar();
     initializeUploadArea(); // 初始化上传区域功能
+    enhanceSearchInput(); // 初始化搜索输入框增强功能
     loadTableList();
-    loadTablesList(); // 添加表格管理初始化
+    
+    // 延迟加载表格列表，确保DOM元素已完全加载
+    setTimeout(() => {
+        addConsoleLog('开始加载文件管理列表...', 'system');
+        loadTablesList(); // 添加表格管理初始化
+    }, 500);
+    
+    // 添加调试函数到全局
+    window.debugRefreshFiles = async function() {
+        console.log('强制刷新文件列表...');
+        await loadTablesList();
+    };
 });
 
 // 初始化上传区域功能

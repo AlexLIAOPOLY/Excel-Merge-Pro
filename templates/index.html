@@ -463,7 +463,7 @@
             grid-template-columns: 1fr 280px;  /* 减少侧边栏宽度，给主内容更多空间 */
             gap: 32px;  /* 增加间距让布局更透气 */
             min-height: calc(100vh - 140px);  /* 使用min-height而不是固定height */
-            align-items: start;  /* 顶部对齐 */
+            align-items: stretch;  /* 拉伸对齐，确保底边对齐 */
         }
 
         /* 中等宽度屏幕优化（针对100%缩放时的常见问题） */
@@ -771,6 +771,7 @@
             pointer-events: none;
             max-width: 450px;
             min-width: 380px;
+            transition: all 0.3s ease-out;
         }
 
         .notification {
@@ -784,10 +785,14 @@
             pointer-events: auto;
             transform: translateX(100%);
             opacity: 0;
-            transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
+                        max-height 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        margin-bottom 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        padding 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             overflow: hidden;
             position: relative;
             min-height: 70px;
+            max-height: 200px; /* 设置最大高度便于动画 */
         }
 
         .notification.show {
@@ -796,6 +801,16 @@
         }
 
         .notification.hide {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        /* 通知消失时收缩动画 */
+        .notification.collapse {
+            max-height: 0;
+            margin-bottom: 0;
+            padding-top: 0;
+            padding-bottom: 0;
             transform: translateX(100%);
             opacity: 0;
         }
@@ -861,15 +876,74 @@
             display: flex;
             flex-direction: column;
             gap: 24px;
-            align-self: start;  /* 避免侧边栏被拉伸 */
+            align-self: stretch;  /* 改为stretch以适应高度同步 */
             max-height: calc(100vh - 140px);  /* 限制最大高度，预留导航栏和间距 */
-            overflow-y: auto;  /* 允许垂直滚动 */
+            overflow: visible;  /* 改为visible，让子元素控制滚动 */
             padding-right: 8px;  /* 为滚动条预留空间 */
+        }
+
+        /* 文件管理卡片高度同步 */
+        .sidebar .card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .sidebar .card .card-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #tableManagerContainer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        #tablesListContainer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        /* 文件列表滚动容器 */
+        .tables-scroll-container {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 400px;  /* 设置最小高度，确保滚动条可见 */
+            max-height: calc(100vh - 300px);  /* 限制最大高度 */
+            padding-right: 4px;
             /* 稳定滚动条占位 */
             scrollbar-gutter: stable;
             /* Firefox 滚动条样式 */
             scrollbar-width: thin;
-            scrollbar-color: rgba(0, 0, 0, 0.08) rgba(0, 0, 0, 0.02);
+            scrollbar-color: rgba(156, 163, 175, 0.2) rgba(0, 0, 0, 0.01);
+        }
+
+        /* 淡色滚动条样式 */
+        .tables-scroll-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .tables-scroll-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.01);
+            border-radius: 3px;
+        }
+
+        .tables-scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.2);
+            border-radius: 3px;
+            transition: background 0.2s ease;
+        }
+
+        .tables-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.4);
         }
 
         /* 卡片样式 */
@@ -1068,9 +1142,401 @@
 
         .upload-desc {
             color: #666;
-            margin-bottom: 12px;  /* 减小间距 */
+            margin-bottom: 16px;  /* 增加间距为按钮留空间 */
             line-height: 1.4;  /* 减小行高 */
             font-size: 14px;  /* 减小字体 */
+        }
+
+        /* 上传操作按钮 */
+        .upload-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .upload-action-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .upload-action-btn.primary {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            color: #4a4a4a;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .upload-action-btn.primary:hover {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+            transform: translateY(-1px);
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .upload-action-btn.secondary {
+            background: #f8f9fa;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+        }
+
+        .upload-action-btn.secondary:hover {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+            transform: translateY(-1px);
+        }
+
+        /* 工作台模态框样式 */
+        .workspace-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .workspace-modal-overlay.show {
+            opacity: 1;
+        }
+
+        .workspace-modal-overlay.closing {
+            opacity: 0;
+        }
+
+        .workspace-modal {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+
+        .workspace-modal-overlay.show .workspace-modal {
+            transform: translateY(0);
+        }
+
+        .workspace-modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .workspace-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .workspace-modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6b7280;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        .workspace-modal-close:hover {
+            color: #374151;
+        }
+
+        .workspace-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 24px;
+        }
+
+        .workspace-file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .workspace-file-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .workspace-file-item:hover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.02);
+        }
+
+        .workspace-file-checkbox {
+            display: none;
+        }
+
+        .workspace-file-checkbox:checked + .workspace-file-label {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .workspace-file-label {
+            display: block;
+            padding: 12px 16px;
+            cursor: pointer;
+            border-radius: 7px;
+        }
+
+        .workspace-file-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .workspace-file-name {
+            font-weight: 500;
+            color: #1f2937;
+            font-size: 14px;
+        }
+
+        .workspace-file-details {
+            font-size: 12px;
+            color: #6b7280;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .file-status.has-data {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .file-status.no-data {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .workspace-modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .workspace-modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .workspace-action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .workspace-action-btn.primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .workspace-action-btn.primary:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        }
+
+        .workspace-action-btn.secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+
+        .workspace-action-btn.secondary:hover {
+            background: #e5e7eb;
+        }
+
+        /* 全局搜索模态框样式 */
+        .global-search-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .global-search-modal-overlay.show {
+            opacity: 1;
+        }
+
+        .global-search-modal-overlay.closing {
+            opacity: 0;
+        }
+
+        .global-search-modal {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+
+        .global-search-modal-overlay.show .global-search-modal {
+            transform: translateY(0);
+        }
+
+        .global-search-modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .global-search-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .global-search-modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6b7280;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        .global-search-modal-close:hover {
+            color: #374151;
+        }
+
+        .global-search-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+        }
+
+        .search-results-summary {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            color: #0369a1;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .search-results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .search-result-group {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .search-result-group:hover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.02);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .result-group-header h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .match-count {
+            background: #3b82f6;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .result-group-info {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .global-search-modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .global-search-action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .global-search-action-btn.secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+
+        .global-search-action-btn.secondary:hover {
+            background: #e5e7eb;
         }
 
         /* 按钮系统 */
@@ -1199,9 +1665,42 @@
             gap: 12px;
         }
 
+        .search-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-mode-selector {
+            flex-shrink: 0;
+        }
+
+        .search-mode-select {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            color: #374151;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 100px;
+        }
+
+        .search-mode-select:hover {
+            border-color: #3b82f6;
+        }
+
+        .search-mode-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
         .search-box {
             min-width: 300px;
             position: relative;
+            flex: 1;
         }
 
         .search-input {
@@ -1931,9 +2430,9 @@
             
             <!-- 桌面端菜单 -->
             <div class="nav-menu">
-                <a href="#" class="nav-link active">数据合并</a>
+                <a href="/" class="nav-link active">数据合并</a>
+                <a href="/workspace" class="nav-link">我的工作台</a>
                 <a href="#" class="nav-link">数据分析</a>
-                <a href="#" class="nav-link">历史记录</a>
                 <a href="#" class="nav-link">使用帮助</a>
             </div>
             
@@ -1948,9 +2447,9 @@
     
     <!-- 移动端菜单 -->
     <div class="nav-menu-mobile" id="navMenuMobile">
-        <a href="#" class="nav-link active">数据合并</a>
+        <a href="/" class="nav-link active">数据合并</a>
+        <a href="/workspace" class="nav-link">我的工作台</a>
         <a href="#" class="nav-link">数据分析</a>
-        <a href="#" class="nav-link">历史记录</a>
         <a href="#" class="nav-link">使用帮助</a>
     </div>
 
@@ -1970,18 +2469,14 @@
                         </button>
                     </div>
                     <div class="card-body upload-body" id="uploadBody">
-                        <div class="upload-zone" id="uploadArea" onclick="document.getElementById('fileInput').click()">
-                            <div class="upload-icon">
-                                <svg width="48" height="48" viewbox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
+                        <div class="upload-zone" id="uploadArea">
+                            <div class="upload-title">拖拽Excel文件到此处上传</div>
+                            <div class="upload-desc">支持 .xlsx 和 .xls 格式，单文件最大 32MB<br/>支持批量拖拽上传多个文件</div>
+                            <div class="upload-actions">
+                                <button type="button" class="upload-action-btn primary" onclick="openWorkspaceUpload()">
+                                    从工作台导入
+                                </button>
                             </div>
-                            <div class="upload-title">点击此处上传Excel文件</div>
-                            <div class="upload-desc">支持 .xlsx 和 .xls 格式，单文件最大 32MB<br/>也可以直接拖拽文件到此区域</div>
                             <input type="file" id="fileInput" multiple accept=".xlsx,.xls" style="display: none;">
                             <div id="fileList" class="file-list" style="display: none;"></div>
                         </div>
@@ -1999,22 +2494,30 @@
                                 <select id="tableSelector" class="cross-browser-select">
                                     <option value="">加载中...</option>
                                 </select>
-                                <button id="editTableNameBtn" class="btn btn-secondary" onclick="showRenameTableModal()" title="重命名表格" style="padding: 8px 12px; font-size: 12px;">
-                                    ✏️
+                                <button id="editTableNameBtn" class="btn btn-secondary" onclick="showRenameTableModal()" title="重命名表格" style="padding: 8px 12px; font-size: 16px;">
+                                    🪄
                                 </button>
                             </div>
-                            <div class="search-box">
-                                <input type="text" id="searchInput" class="search-input" placeholder="搜索表格内容...（实时搜索）">
+                            <div class="search-container">
+                                <div class="search-mode-selector">
+                                    <select id="searchMode" class="search-mode-select">
+                                        <option value="current">当前表格</option>
+                                        <option value="global">全局搜索</option>
+                                    </select>
+                                </div>
+                                <div class="search-box">
+                                    <input type="text" id="searchInput" class="search-input" placeholder="搜索表格内容...（实时搜索）">
+                                </div>
+                                <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
                             </div>
-                            <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
                         </div>
                         <div class="toolbar-right">
 
                             <button class="btn btn-secondary" onclick="refreshData()">刷新</button>
                             <button class="btn btn-secondary" style="background: #ef4444; color: white;" onclick="clearAllData()">清空所有数据</button>
                             
-                            <!-- 导出按钮 -->
-                            <button class="btn btn-primary" onclick="exportAllGroups()">导出Excel</button>
+                            <!-- 导出按钮 - 支持全局搜索结果导出 -->
+                            <button class="btn btn-primary" onclick="handleExportClick()" id="exportBtn">导出Excel</button>
                         </div>
                     </div>
                     
@@ -2031,14 +2534,12 @@
                                 <tr><td class="empty-state">
                                     <h3>暂无数据</h3>
                                     <p>请上传Excel文件开始使用</p>
-                                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">上传第一个文件</button>
                                 </td></tr>
                             </tbody>
                         </table>
                         <div id="emptyState" class="empty-state">
                             <h3>暂无数据</h3>
                             <p>请上传Excel文件开始使用</p>
-                            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">上传第一个文件</button>
                         </div>
                     </div>
                 </div>
@@ -2065,16 +2566,10 @@
                                 暂无上传文件
                             </div>
                             <div id="tablesListContainer" style="display: none;">
-                                <div id="tablesList"></div>
-                                <!-- 分页控件 -->
-                                <div id="paginationContainer" style="display: none; margin-top: 12px; text-align: center; padding: 8px 0; border-top: 1px solid #e5e7eb;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                        <button id="prevPageBtn" class="btn btn-secondary" onclick="changePage(-1)" style="font-size: 11px; padding: 4px 8px;">上页</button>
-                                        <span id="pageInfo" style="font-size: 11px; color: #6b7280;"></span>
-                                        <button id="nextPageBtn" class="btn btn-secondary" onclick="changePage(1)" style="font-size: 11px; padding: 4px 8px;">下页</button>
-                                    </div>
+                                <div id="tablesScrollContainer" class="tables-scroll-container">
+                                    <div id="tablesList"></div>
                                 </div>
-                                <div style="margin-top: 8px; text-align: center;">
+                                <div style="margin-top: 12px; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 8px;">
                                     <button class="btn btn-secondary" onclick="refreshTablesList()" style="font-size: 12px; padding: 6px 12px;">刷新列表</button>
                                 </div>
                             </div>

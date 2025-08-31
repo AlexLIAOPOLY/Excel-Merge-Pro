@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的工作台 - DataMerge Pro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+            background: #fafafa;
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* 导航栏 */
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            height: 72px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .nav-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            text-decoration: none;
+            color: #1a1a1a;
+        }
+
+        .nav-logo {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #93c5fd 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .nav-title {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-link {
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 12px 20px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            color: #333;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .nav-link.active {
+            color: #3b82f6;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(29, 78, 216, 0.15) 100%);
+        }
+
+        /* 主容器 */
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px 32px;
+            min-height: calc(100vh - 72px);
+        }
+
+        /* 页面头部 */
+        .page-header {
+            margin-bottom: 0px;
+        }
+
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .page-description {
+            color: #666;
+            font-size: 16px;
+        }
+
+        /* 工具栏 */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 16px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* 按钮系统 */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #6b7280;
+            border: 1px solid #d1d5db;
+        }
+
+        .btn-secondary:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+            color: #374151;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        /* 文件网格 */
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        /* 文件卡片 */
+        .file-card {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .file-card:hover {
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+
+        .file-card.selected {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .file-card-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            background: linear-gradient(135deg, #f9fafb 0%, #f1f3f5 100%);
+        }
+
+        .file-card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            cursor: pointer;
+        }
+
+        .file-card-subtitle {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .file-card-body {
+            padding: 20px;
+        }
+
+        .file-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .file-stat {
+            text-align: center;
+        }
+
+        .file-stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #3b82f6;
+        }
+
+        .file-stat-label {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .file-action-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .file-action-view {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .file-action-view:hover {
+            background: #5a6fd8;
+        }
+
+        .file-action-edit {
+            background: #10b981;
+            color: white;
+        }
+
+        .file-action-edit:hover {
+            background: #059669;
+        }
+
+        .file-action-delete {
+            background: #ef4444;
+            color: white;
+        }
+
+        .file-action-delete:hover {
+            background: #dc2626;
+        }
+
+        /* 选择框 */
+        .file-select {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 20px;
+            height: 20px;
+        }
+
+        /* 状态颜色样式 */
+        .status-imported {
+            color: #10b981 !important;
+            font-weight: 600;
+        }
+
+        .status-not-imported {
+            color: #ef4444 !important;
+            font-weight: 600;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: #6b7280;
+        }
+
+        .empty-state p {
+            margin-bottom: 24px;
+        }
+
+        /* 加载状态 */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: #9ca3af;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid rgba(59, 130, 246, 0.2);
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        /* 通知容器 */
+        .notification-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 10000;
+            pointer-events: none;
+            max-width: 450px;
+            min-width: 380px;
+        }
+
+        .notification {
+            background: linear-gradient(135deg, #fefefe 0%, #fcfcfd 100%);
+            border: 1px solid rgba(59, 130, 246, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            backdrop-filter: blur(10px);
+            margin-bottom: 8px;
+            padding: 16px 20px;
+            pointer-events: auto;
+            transform: translateX(100%);
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .notification-message {
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        /* 筛选面板样式 */
+        .filter-panel {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #4a5568;
+            white-space: nowrap;
+        }
+
+        .filter-select {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 14px;
+            background: white;
+            color: #374151;
+            min-width: 140px;
+            transition: all 0.2s ease;
+        }
+
+        .filter-select:hover {
+            border-color: #3b82f6;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .filter-actions {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .filtered-count {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 16px;
+            }
+
+            .files-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 16px;
+            }
+
+            .filter-panel {
+                flex-direction: column;
+                gap: 12px;
+                align-items: stretch;
+            }
+
+            .filter-group {
+                flex-direction: column;
+                gap: 6px;
+                align-items: flex-start;
+            }
+
+            .filter-select {
+                min-width: unset;
+                width: 100%;
+            }
+
+            .filter-actions {
+                margin-left: 0;
+                justify-content: space-between;
+            }
+
+            .toolbar-left,
+            .toolbar-right {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">
+                <div class="nav-logo">DM</div>
+                <div class="nav-title">DataMerge Pro</div>
+            </a>
+            
+            <div class="nav-menu">
+                <a href="/" class="nav-link">数据合并</a>
+                <a href="/workspace" class="nav-link active">我的工作台</a>
+                <a href="#" class="nav-link">数据分析</a>
+                <a href="#" class="nav-link">使用帮助</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <div class="main-container">
+        <!-- 页面头部 -->
+        <div class="page-header">
+        </div>
+
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <span id="fileCount" style="color: #666; font-size: 14px;">共 0 个文件</span>
+                <span id="selectedCount" style="color: #3b82f6; font-size: 14px; display: none;">已选择 0 个文件</span>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-secondary" id="selectAllBtn" onclick="toggleSelectAll()">全选</button>
+                <button class="btn btn-secondary" onclick="refreshFiles()">刷新</button>
+                <button class="btn btn-danger" id="deleteSelectedBtn" onclick="deleteSelected()" disabled>删除选中</button>
+                <button class="btn btn-primary" onclick="triggerFileUpload()">上传新文件</button>
+            </div>
+            <!-- 隐藏的文件上传输入框 -->
+            <input type="file" id="fileUploadInput" accept=".xlsx,.xls" style="display: none;" onchange="uploadFile(event)">
+        </div>
+
+        <!-- 筛选面板 -->
+        <div class="filter-panel">
+            <div class="filter-group">
+                <label class="filter-label">文件夹：</label>
+                <select id="folderFilter" class="filter-select">
+                    <option value="all">全部文件夹</option>
+                    <option value="test_files">示例表格 (test_files)</option>
+                    <option value="test_files_v2">测试表格 (test_files_v2)</option>
+                    <option value="user_files">用户文件 (user_files)</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">数据状态：</label>
+                <select id="dataStatusFilter" class="filter-select">
+                    <option value="all">全部状态</option>
+                    <option value="has_data">已导入</option>
+                    <option value="no_data">未导入</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">文件大小：</label>
+                <select id="fileSizeFilter" class="filter-select">
+                    <option value="all">全部大小</option>
+                    <option value="small">小于5KB</option>
+                    <option value="medium">5KB - 10KB</option>
+                    <option value="large">大于10KB</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">排序方式：</label>
+                <select id="sortFilter" class="filter-select">
+                    <option value="updated_desc">最新修改</option>
+                    <option value="updated_asc">最早修改</option>
+                    <option value="name_asc">文件名 A-Z</option>
+                    <option value="name_desc">文件名 Z-A</option>
+                    <option value="size_desc">大小递减</option>
+                    <option value="size_asc">大小递增</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button class="btn btn-secondary btn-sm" onclick="resetFilters()">重置筛选</button>
+                <span id="filteredCount" class="filtered-count">显示 0 / 0 个文件</span>
+            </div>
+        </div>
+
+        <!-- 文件列表 -->
+        <div id="filesContainer">
+            <!-- 加载状态 -->
+            <div id="loadingState" class="loading">
+                <div class="spinner"></div>
+                <div>正在加载文件...</div>
+            </div>
+
+            <!-- 文件网格 -->
+            <div id="filesGrid" class="files-grid" style="display: none;"></div>
+
+            <!-- 空状态 -->
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <h3>暂无文件</h3>
+                <p>您还没有上传任何文件</p>
+                <a href="/" class="btn btn-primary">立即上传</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重命名文件模态框 -->
+    <div id="editFileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">重命名文件</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="fileName">新文件名</label>
+                <input type="text" id="fileName" class="form-input" placeholder="请输入新文件名（包含扩展名）">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="fileDescription">当前位置</label>
+                <input type="text" id="fileDescription" class="form-input" placeholder="文件位置" readonly>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideEditModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveFileEdit()">确认重命名</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知容器 -->
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <script>
+        // 全局变量
+        let files = [];
+        let selectedFiles = [];
+        let currentEditingFile = null;
+        let filteredFiles = []; // 筛选后的文件列表
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFiles();
+            initializeFilters();
+        });
+
+        // 初始化筛选器
+        function initializeFilters() {
+            // 绑定筛选事件
+            document.getElementById('folderFilter').addEventListener('change', applyFilters);
+            document.getElementById('dataStatusFilter').addEventListener('change', applyFilters);
+            document.getElementById('fileSizeFilter').addEventListener('change', applyFilters);
+            document.getElementById('sortFilter').addEventListener('change', applyFilters);
+        }
+
+        // 加载文件列表
+        async function loadFiles() {
+            try {
+                showLoading();
+                const response = await fetch('/api/workspace/files');
+                const data = await response.json();
+                
+                if (data.success) {
+                    files = data.files;
+                    applyFilters(); // 应用筛选而不是直接渲染
+                } else {
+                    showNotification('加载失败', data.message, 'error');
+                    showEmpty();
+                }
+            } catch (error) {
+                console.error('加载文件失败:', error);
+                showNotification('加载失败', '网络错误，请重试', 'error');
+                showEmpty();
+            }
+        }
+
+        // 渲染文件列表
+        function renderFiles() {
+            const filesGrid = document.getElementById('filesGrid');
+            const loadingState = document.getElementById('loadingState');
+            const emptyState = document.getElementById('emptyState');
+
+            if (filteredFiles.length === 0) {
+                showEmpty();
+                return;
+            }
+
+            loadingState.style.display = 'none';
+            emptyState.style.display = 'none';
+            filesGrid.style.display = 'grid';
+
+            filesGrid.innerHTML = filteredFiles.map(file => `
+                <div class="file-card" data-file-name="${file.name}">
+                    <input type="checkbox" class="file-select" onchange="toggleFileSelection('${file.name}')">
+                    <div class="file-card-header">
+                        <div class="file-card-title" onclick="viewFile('${file.name}')">${file.name}</div>
+                        <div class="file-card-subtitle">位置: ${file.folder} | 大小: ${file.size_formatted}</div>
+                    </div>
+                    <div class="file-card-body">
+                        <div class="file-stats">
+                            <div class="file-stat">
+                                <div class="file-stat-value">${file.records}</div>
+                                <div class="file-stat-label">记录数</div>
+                            </div>
+                            <div class="file-stat">
+                                <div class="file-stat-value">${file.columns}</div>
+                                <div class="file-stat-label">列数</div>
+                            </div>
+                            <div class="file-stat">
+                                <div class="file-stat-value ${file.has_data ? 'status-imported' : 'status-not-imported'}">${file.has_data ? '已导入' : '未导入'}</div>
+                                <div class="file-stat-label">数据状态</div>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="file-action-btn file-action-view" onclick="viewFile('${file.name}')">查看</button>
+                            <button class="file-action-btn file-action-edit" onclick="editFile('${file.name}')">重命名</button>
+                            <button class="file-action-btn file-action-delete" onclick="deleteFile('${file.name}')">删除</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 显示加载状态
+        function showLoading() {
+            document.getElementById('loadingState').style.display = 'flex';
+            document.getElementById('filesGrid').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'none';
+        }
+
+        // 显示空状态
+        function showEmpty() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('filesGrid').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+            updateFileCount();
+        }
+
+        // 更新文件计数
+        function updateFileCount() {
+            const fileCount = document.getElementById('fileCount');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            fileCount.textContent = `共 ${files.length} 个文件`;
+            
+            if (selectedFiles.length > 0) {
+                selectedCount.textContent = `已选择 ${selectedFiles.length} 个文件`;
+                selectedCount.style.display = 'inline';
+                document.getElementById('deleteSelectedBtn').disabled = false;
+            } else {
+                selectedCount.style.display = 'none';
+                document.getElementById('deleteSelectedBtn').disabled = true;
+            }
+        }
+
+        // 切换文件选择
+        function toggleFileSelection(fileName) {
+            const index = selectedFiles.indexOf(fileName);
+            const fileCard = document.querySelector(`[data-file-name="${fileName}"]`);
+            
+            if (index > -1) {
+                selectedFiles.splice(index, 1);
+                fileCard.classList.remove('selected');
+            } else {
+                selectedFiles.push(fileName);
+                fileCard.classList.add('selected');
+            }
+            
+            updateFileCount();
+            updateSelectAllButton();
+        }
+
+        // 切换全选/取消全选
+        function toggleSelectAll() {
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const fileCards = document.querySelectorAll('.file-card');
+            
+            // 检查是否所有文件都被选中
+            const allSelected = filteredFiles.length > 0 && selectedFiles.length === filteredFiles.length;
+            
+            if (allSelected) {
+                // 取消全选
+                selectedFiles = [];
+                fileCards.forEach(card => {
+                    card.classList.remove('selected');
+                });
+                selectAllBtn.textContent = '全选';
+                showNotification('操作完成', '已取消选择所有文件', 'info');
+            } else {
+                // 全选
+                selectedFiles = [...filteredFiles.map(f => f.name)];
+                fileCards.forEach(card => {
+                    card.classList.add('selected');
+                });
+                selectAllBtn.textContent = '取消全选';
+                showNotification('操作完成', `已选择所有 ${filteredFiles.length} 个文件`, 'success');
+            }
+            
+            updateFileCount();
+            updateSelectAllButton();
+        }
+
+        // 更新全选按钮状态
+        function updateSelectAllButton() {
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const allSelected = filteredFiles.length > 0 && selectedFiles.length === filteredFiles.length;
+            
+            if (filteredFiles.length === 0) {
+                selectAllBtn.disabled = true;
+                selectAllBtn.textContent = '全选';
+            } else {
+                selectAllBtn.disabled = false;
+                selectAllBtn.textContent = allSelected ? '取消全选' : '全选';
+            }
+        }
+
+        // 查看文件
+        async function viewFile(fileName) {
+            const file = files.find(f => f.name === fileName);
+            if (!file) return;
+            
+            // 如果文件没有数据记录，先自动导入到数据库
+            if (file.records === 0) {
+                try {
+                    showNotification('提示', '正在导入文件到数据库...', 'info');
+                    
+                    const importResponse = await fetch('/api/workspace/files/import', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            file_name: fileName,
+                            file_path: file.path
+                        })
+                    });
+                    
+                    const importData = await importResponse.json();
+                    if (!importData.success) {
+                        showNotification('错误', `导入失败: ${importData.message}`, 'error');
+                        return;
+                    }
+                    
+                    showNotification('成功', '文件导入成功，正在打开...', 'success');
+                } catch (error) {
+                    console.error('导入文件失败:', error);
+                    showNotification('错误', '导入文件时发生网络错误', 'error');
+                    return;
+                }
+            }
+            
+            // 打开主页面查看文件
+            window.open(`/?file=${encodeURIComponent(fileName)}`, '_blank');
+        }
+
+        // 编辑文件
+        function editFile(fileName) {
+            const file = files.find(f => f.name === fileName);
+            if (!file) return;
+
+            currentEditingFile = file;
+            document.getElementById('fileName').value = file.name;
+            document.getElementById('fileDescription').value = file.folder || '';
+            showEditModal();
+        }
+
+        // 显示编辑模态框
+        function showEditModal() {
+            document.getElementById('editFileModal').classList.add('show');
+        }
+
+        // 隐藏编辑模态框
+        function hideEditModal() {
+            document.getElementById('editFileModal').classList.remove('show');
+            currentEditingFile = null;
+        }
+
+        // 保存文件编辑（重命名）
+        async function saveFileEdit() {
+            if (!currentEditingFile) return;
+
+            const newName = document.getElementById('fileName').value.trim();
+
+            if (!newName) {
+                showNotification('错误', '文件名不能为空', 'error');
+                return;
+            }
+
+            if (newName === currentEditingFile.name) {
+                hideEditModal();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/workspace/files/${encodeURIComponent(currentEditingFile.name)}/rename`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        new_name: newName
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('成功', data.message, 'success');
+                    hideEditModal();
+                    loadFiles(); // 重新加载文件列表
+                } else {
+                    showNotification('错误', data.message, 'error');
+                }
+            } catch (error) {
+                console.error('重命名文件失败:', error);
+                showNotification('错误', '网络错误，请重试', 'error');
+            }
+        }
+
+        // 删除文件
+        async function deleteFile(fileName) {
+            const file = files.find(f => f.name === fileName);
+            if (!file) return;
+
+            const recordText = file.records > 0 ? `以及数据库中 ${file.records} 条相关记录` : `（数据库中无相关记录）`;
+            if (!confirm(`确定要删除文件 "${fileName}" 吗？\n\n此操作将删除物理文件${recordText}。\n此操作不可恢复！`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/workspace/files/${encodeURIComponent(fileName)}/delete`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('成功', data.message, 'success');
+                    loadFiles(); // 重新加载文件列表
+                } else {
+                    showNotification('错误', data.message, 'error');
+                }
+            } catch (error) {
+                console.error('删除文件失败:', error);
+                showNotification('错误', '网络错误，请重试', 'error');
+            }
+        }
+
+
+        // 删除选中的文件
+        function deleteSelected() {
+            if (selectedFiles.length === 0) {
+                showNotification('提示', '请先选择要删除的文件', 'warning');
+                return;
+            }
+
+            const fileNames = selectedFiles.map(name => files.find(f => f.name === name)?.name).filter(Boolean);
+            if (!confirm(`确定要删除选中的 ${selectedFiles.length} 个文件吗？\n\n${fileNames.join('\n')}\n\n此操作不可恢复。`)) {
+                return;
+            }
+
+            // 逐个删除选中的文件
+            Promise.all(selectedFiles.map(fileName => 
+                fetch(`/api/workspace/files/${encodeURIComponent(fileName)}/delete`, { method: 'DELETE' })
+            )).then(responses => {
+                return Promise.all(responses.map(r => r.json()));
+            }).then(results => {
+                const successful = results.filter(r => r.success).length;
+                const failed = results.length - successful;
+                
+                if (failed === 0) {
+                    showNotification('成功', `成功删除 ${successful} 个文件`, 'success');
+                } else {
+                    showNotification('警告', `成功删除 ${successful} 个文件，失败 ${failed} 个`, 'warning');
+                }
+                
+                selectedFiles = [];
+                loadFiles(); // 重新加载文件列表
+            }).catch(error => {
+                console.error('批量删除文件失败:', error);
+                showNotification('错误', '网络错误，请重试', 'error');
+            });
+        }
+
+        // 触发文件上传
+        function triggerFileUpload() {
+            document.getElementById('fileUploadInput').click();
+        }
+
+        // 上传文件
+        async function uploadFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showNotification('提示', '正在上传文件...', 'info');
+                
+                const response = await fetch('/api/workspace/files/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('成功', data.message, 'success');
+                    loadFiles(); // 重新加载文件列表
+                } else {
+                    showNotification('错误', data.message, 'error');
+                }
+            } catch (error) {
+                console.error('上传文件失败:', error);
+                showNotification('错误', '网络错误，请重试', 'error');
+            } finally {
+                // 清空文件输入框
+                event.target.value = '';
+            }
+        }
+
+        // 刷新文件列表
+        function refreshFiles() {
+            selectedFiles = [];
+            loadFiles();
+            updateSelectAllButton();
+        }
+
+        // 筛选功能
+        function applyFilters() {
+            const folderFilter = document.getElementById('folderFilter').value;
+            const dataStatusFilter = document.getElementById('dataStatusFilter').value;
+            const fileSizeFilter = document.getElementById('fileSizeFilter').value;
+            const sortFilter = document.getElementById('sortFilter').value;
+
+            // 应用筛选条件
+            filteredFiles = files.filter(file => {
+                // 文件夹筛选
+                if (folderFilter !== 'all' && file.folder !== folderFilter) {
+                    return false;
+                }
+
+                // 数据状态筛选
+                if (dataStatusFilter === 'has_data' && !file.has_data) {
+                    return false;
+                }
+                if (dataStatusFilter === 'no_data' && file.has_data) {
+                    return false;
+                }
+
+                // 文件大小筛选
+                const fileSize = file.size;
+                if (fileSizeFilter === 'small' && fileSize >= 5120) { // 5KB
+                    return false;
+                }
+                if (fileSizeFilter === 'medium' && (fileSize < 5120 || fileSize > 10240)) { // 5KB-10KB
+                    return false;
+                }
+                if (fileSizeFilter === 'large' && fileSize <= 10240) { // >10KB
+                    return false;
+                }
+
+                return true;
+            });
+
+            // 应用排序
+            applySorting(sortFilter);
+
+            // 渲染筛选结果
+            renderFiles();
+            updateFileCount();
+            updateFilteredCount();
+            updateSelectAllButton();
+        }
+
+        // 应用排序
+        function applySorting(sortType) {
+            switch (sortType) {
+                case 'updated_desc':
+                    filteredFiles.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+                    break;
+                case 'updated_asc':
+                    filteredFiles.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at));
+                    break;
+                case 'name_asc':
+                    filteredFiles.sort((a, b) => a.name.localeCompare(b.name));
+                    break;
+                case 'name_desc':
+                    filteredFiles.sort((a, b) => b.name.localeCompare(a.name));
+                    break;
+                case 'size_desc':
+                    filteredFiles.sort((a, b) => b.size - a.size);
+                    break;
+                case 'size_asc':
+                    filteredFiles.sort((a, b) => a.size - b.size);
+                    break;
+            }
+        }
+
+        // 重置筛选条件
+        function resetFilters() {
+            document.getElementById('folderFilter').value = 'all';
+            document.getElementById('dataStatusFilter').value = 'all';
+            document.getElementById('fileSizeFilter').value = 'all';
+            document.getElementById('sortFilter').value = 'updated_desc';
+            applyFilters();
+        }
+
+        // 更新筛选计数
+        function updateFilteredCount() {
+            document.getElementById('filteredCount').textContent = `显示 ${filteredFiles.length} / ${files.length} 个文件`;
+        }
+
+        // 显示通知
+        function showNotification(title, message, type = 'info') {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            
+            notification.innerHTML = `
+                <div class="notification-title">${title}</div>
+                <div class="notification-message">${message}</div>
+            `;
+            
+            container.appendChild(notification);
+            
+            // 触发显示动画
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            // 自动隐藏
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    container.removeChild(notification);
+                }, 500);
+            }, 3000);
+        }
+
+        // 处理点击模态框外部关闭
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('show');
+                if (e.target.id === 'editFileModal') {
+                    currentEditingFile = null;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
