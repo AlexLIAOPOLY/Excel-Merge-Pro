@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的工作台 - DataMerge Pro</title>
+    <link rel="stylesheet" href="/static/css/cross-browser-select.css">
     <style>
         * {
             margin: 0;
@@ -1090,7 +1091,7 @@
         <div class="filter-panel">
             <div class="filter-group">
                 <label class="filter-label">文件夹：</label>
-                <select id="folderFilter" class="filter-select">
+                <select id="folderFilter" class="cross-browser-select">
                     <option value="all">全部文件夹</option>
                     <option value="test_files">示例表格 (test_files)</option>
                     <option value="test_files_v2">测试表格 (test_files_v2)</option>
@@ -1099,7 +1100,7 @@
             </div>
             <div class="filter-group">
                 <label class="filter-label">数据状态：</label>
-                <select id="dataStatusFilter" class="filter-select">
+                <select id="dataStatusFilter" class="cross-browser-select">
                     <option value="all">全部状态</option>
                     <option value="has_data">已导入</option>
                     <option value="no_data">未导入</option>
@@ -1107,7 +1108,7 @@
             </div>
             <div class="filter-group">
                 <label class="filter-label">文件大小：</label>
-                <select id="fileSizeFilter" class="filter-select">
+                <select id="fileSizeFilter" class="cross-browser-select">
                     <option value="all">全部大小</option>
                     <option value="small">小于5KB</option>
                     <option value="medium">5KB - 10KB</option>
@@ -1116,7 +1117,7 @@
             </div>
             <div class="filter-group">
                 <label class="filter-label">排序方式：</label>
-                <select id="sortFilter" class="filter-select">
+                <select id="sortFilter" class="cross-browser-select">
                     <option value="updated_desc">最新修改</option>
                     <option value="updated_asc">最早修改</option>
                     <option value="name_asc">文件名 A-Z</option>
