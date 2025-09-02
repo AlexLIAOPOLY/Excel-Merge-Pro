@@ -434,16 +434,61 @@
             display: grid;
             grid-template-columns: 300px 1fr;
             gap: 30px;
-            min-height: 70vh;
+            height: calc(100vh - 120px); /* 固定高度，减去导航栏和边距 */
+            max-height: 800px; /* 最大高度限制 */
+            min-height: 600px; /* 最小高度保证 */
         }
         
         /* 配置面板 */
         .config-panel {
             background: white;
             border-radius: 12px;
-            padding: 24px;
+            padding: 0; /* 移除外层padding，由内部元素控制 */
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            height: fit-content;
+            height: 100%; /* 占满容器高度 */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 防止子元素溢出 */
+        }
+        
+        /* 配置面板标题 */
+        .config-header {
+            padding: 24px 24px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            flex-shrink: 0; /* 标题不缩放 */
+        }
+        
+        /* 配置面板内容区域 */
+        .config-content {
+            flex: 1;
+            overflow-y: auto; /* 内容区域可滚动 */
+            padding: 16px 24px 24px;
+        }
+        
+        /* 美化滚动条样式 */
+        .config-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .config-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .config-content::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+            transition: background 0.2s ease;
+        }
+        
+        .config-content::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* Firefox 滚动条样式 */
+        .config-content {
+            scrollbar-width: thin;
+            scrollbar-color: #c1c1c1 #f1f1f1;
         }
         
         .config-title {
@@ -821,6 +866,43 @@
             height: 100%;
         }
         #pivotTableContainer { flex: 1; min-height: 0; overflow: auto; }
+        
+        /* 透视表滚动条样式 */
+        .pivot-table-container::-webkit-scrollbar,
+        #pivotTableContainer::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        .pivot-table-container::-webkit-scrollbar-track,
+        #pivotTableContainer::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .pivot-table-container::-webkit-scrollbar-thumb,
+        #pivotTableContainer::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+            transition: background 0.2s ease;
+        }
+        
+        .pivot-table-container::-webkit-scrollbar-thumb:hover,
+        #pivotTableContainer::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        .pivot-table-container::-webkit-scrollbar-corner,
+        #pivotTableContainer::-webkit-scrollbar-corner {
+            background: #f1f1f1;
+        }
+        
+        /* Firefox 滚动条样式 */
+        .pivot-table-container,
+        #pivotTableContainer {
+            scrollbar-width: thin;
+            scrollbar-color: #c1c1c1 #f1f1f1;
+        }
         
         .pivot-table {
             width: 100%;
@@ -1210,11 +1292,16 @@
         <div class="pivot-container">
             <!-- 配置面板 -->
             <div class="config-panel">
-                <h3 class="config-title">
-                    透视表配置
-                </h3>
+                <!-- 配置面板头部 -->
+                <div class="config-header">
+                    <h3 class="config-title">
+                        透视表配置
+                    </h3>
+                </div>
                 
-                <!-- 数据源选择 -->
+                <!-- 配置面板内容 -->
+                <div class="config-content">
+                    <!-- 数据源选择 -->
                 <div class="config-section">
                     <label class="section-label">数据源</label>
                     <div class="searchable-select-container">
@@ -1278,13 +1365,14 @@
 
                 </div>
                 
-                <!-- 操作按钮 -->
-                <div class="action-buttons">
-                    <button class="btn btn-secondary" onclick="clearAllFields()">
-                        清空配置
-                    </button>
-                    <button class="btn btn-secondary" type="button" onclick="savePivotConfig()">保存配置</button>
-                    <button class="btn btn-secondary" type="button" onclick="loadPivotConfig()">加载配置</button>
+                    <!-- 操作按钮 -->
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" onclick="clearAllFields()">
+                            清空配置
+                        </button>
+                        <button class="btn btn-secondary" type="button" onclick="savePivotConfig()">保存配置</button>
+                        <button class="btn btn-secondary" type="button" onclick="loadPivotConfig()">加载配置</button>
+                    </div>
                 </div>
             </div>
             
