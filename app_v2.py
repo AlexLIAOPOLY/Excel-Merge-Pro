@@ -2035,6 +2035,7 @@ def generate_pivot_table():
         row_fields = data.get('row_fields', [])
         column_fields = data.get('column_fields', [])
         value_fields = data.get('value_fields', [])
+        value_fields_config = data.get('value_fields_config', [])
         
         print(f"[透视分析] 接收到请求: 分组ID={group_id}, 行字段={row_fields}, 列字段={column_fields}, 数值字段={value_fields}")
         
@@ -2075,9 +2076,20 @@ def generate_pivot_table():
         if missing_fields:
             return jsonify({'success': False, 'message': f'字段不存在: {", ".join(missing_fields)}'})
         
-        # 将数值字段转换为数字类型
-        for field in value_fields:
-            df[field] = pd.to_numeric(df[field], errors='coerce').fillna(0)
+        # 将需要数值聚合的字段转换为数字类型（sum/avg/max/min）
+        numeric_need = set()
+        for item in (value_fields_config or []):
+            try:
+                if item.get('agg') in ['sum','avg','max','min']:
+                    numeric_need.add(item.get('field'))
+            except Exception:
+                pass
+        if not numeric_need:
+            # 向后兼容：若未提供配置，则默认所有值字段做数值聚合
+            numeric_need = set(value_fields)
+        for field in numeric_need:
+            if field in df.columns:
+                df[field] = pd.to_numeric(df[field], errors='coerce').fillna(0)
         
         try:
             result_data = []
@@ -2101,63 +2113,114 @@ def generate_pivot_table():
             
             # 情况3：有行字段或列字段，也有数值字段 - 完整透视表
             elif (row_fields or column_fields) and value_fields:
-                # 准备透视表参数
-                pivot_params = {
-                    'data': df,
-                    'values': value_fields,
-                    'aggfunc': 'sum',
-                    'fill_value': 0
-                }
-                
-                # 添加index参数（行字段）
-                if row_fields:
-                    pivot_params['index'] = row_fields
-                
-                # 添加columns参数（列字段）
-                if column_fields:
-                    pivot_params['columns'] = column_fields
-                
-                # 生成透视表
-                pivot_table = pd.pivot_table(**pivot_params)
+                if value_fields_config:
+                    # 按配置逐项聚合，支持同字段多聚合
+                    group_keys = []
+                    if row_fields:
+                        group_keys.extend(row_fields)
+                    if column_fields:
+                        group_keys.extend(column_fields)
+                    grouped = df.groupby(group_keys, dropna=False)
 
-                # 扁平化处理
-                pivot_reset = pivot_table.copy()
+                    result_df = None
 
-                # 行索引还原为列
-                try:
-                    pivot_reset = pivot_reset.reset_index()
-                except Exception:
-                    pass
+                    def agg_func_key(k):
+                        return {
+                            'sum': 'sum',
+                            'count': 'count',
+                            'avg': 'mean',
+                            'max': 'max',
+                            'min': 'min',
+                            'distinct_count': 'nunique',
+                        }.get(k, 'sum')
 
-                # 扁平化多级列名
-                def _flat_col(col):
-                    if isinstance(col, tuple):
-                        parts = [str(c) for c in col if c != '' and str(c) != 'nan']
-                        return '_'.join(parts) if parts else str(col[0])
-                    return str(col)
+                    for item in value_fields_config:
+                        field = item.get('field')
+                        agg_key = agg_func_key(item.get('agg'))
+                        if not field or field not in df.columns:
+                            continue
+                        alias = item.get('alias') or f"{field}_{item.get('agg') or 'sum'}"
+                        series = getattr(grouped[field], agg_key)()
+                        if column_fields:
+                            sub = series.unstack(column_fields)
+                            def _flat(col):
+                                if isinstance(col, tuple):
+                                    base = '_'.join([str(c) for c in col if c != '' and str(c) != 'nan'])
+                                else:
+                                    base = str(col)
+                                return f"{base}_{alias}"
+                            sub.columns = [_flat(c) for c in sub.columns]
+                        else:
+                            sub = series.to_frame(alias)
+                        if result_df is None:
+                            result_df = sub
+                        else:
+                            try:
+                                result_df = result_df.join(sub, how='outer')
+                            except Exception:
+                                result_df = result_df.merge(sub, left_index=True, right_index=True, how='outer')
 
-                pivot_reset.columns = [_flat_col(c) for c in pivot_reset.columns]
+                    if result_df is None:
+                        return jsonify({'success': False, 'message': '未生成任何聚合结果'})
 
-                # 替换 NaN 和 None
-                pivot_reset = pivot_reset.fillna(0)
+                    try:
+                        result_df = result_df.reset_index()
+                    except Exception:
+                        pass
 
-                # 将 numpy 标量转为 Python 基础类型
-                def _to_native(v):
-                    if hasattr(v, 'item'):
-                        try:
-                            return v.item()
-                        except:
-                            pass
-                    if pd.isna(v):
-                        return 0
-                    return v
-
-                # 清理数据类型
-                for col in pivot_reset.columns:
-                    pivot_reset[col] = pivot_reset[col].apply(_to_native)
-
-                result_data = pivot_reset.to_dict(orient='records')
-                print(f"[透视分析] 完整透视表生成成功，共 {len(result_data)} 行数据")
+                    # 将缺失填 0 并转原生类型
+                    result_df = result_df.fillna(0)
+                    def _to_native(v):
+                        if hasattr(v, 'item'):
+                            try:
+                                return v.item()
+                            except:
+                                pass
+                        if pd.isna(v):
+                            return 0
+                        return v
+                    for col in result_df.columns:
+                        result_df[col] = result_df[col].apply(_to_native)
+                    result_data = result_df.to_dict(orient='records')
+                    print(f"[透视分析] 按配置聚合完成，共 {len(result_data)} 行数据")
+                else:
+                    # 兼容旧逻辑：所有值字段按 sum
+                    pivot_params = {
+                        'data': df,
+                        'values': value_fields,
+                        'aggfunc': 'sum',
+                        'fill_value': 0
+                    }
+                    if row_fields:
+                        pivot_params['index'] = row_fields
+                    if column_fields:
+                        pivot_params['columns'] = column_fields
+                    pivot_table = pd.pivot_table(**pivot_params)
+                    pivot_reset = pivot_table.copy()
+                    try:
+                        pivot_reset = pivot_reset.reset_index()
+                    except Exception:
+                        pass
+                    def _flat_col(col):
+                        if isinstance(col, tuple):
+                            parts = [str(c) for c in col if c != '' and str(c) != 'nan']
+                            return '_'.join(parts) if parts else str(col[0])
+                        return str(col)
+                    pivot_reset.columns = [_flat_col(c) for c in pivot_reset.columns]
+                    pivot_reset = pivot_reset.fillna(0)
+                    def _to_native(v):
+                        if hasattr(v, 'item'):
+                            try:
+                                return v.item()
+                            except:
+                                pass
+                        if pd.isna(v):
+                            return 0
+                        return v
+                    for col in pivot_reset.columns:
+                        pivot_reset[col] = pivot_reset[col].apply(_to_native)
+                    result_data = pivot_reset.to_dict(orient='records')
+                    print(f"[透视分析] 完整透视表生成成功，共 {len(result_data)} 行数据")
             
             else:
                 return jsonify({'success': False, 'message': '无效的字段组合'})
