@@ -9,6 +9,8 @@ load_dotenv()
 try:
     import pandas as pd
     HAS_PANDAS = True
+    # 数值类型兼容
+    import numpy as np  # 用于将 numpy 标量安全转换为 Python 基础类型
 except ImportError:
     HAS_PANDAS = False
     pd = None
@@ -41,6 +43,11 @@ def index():
 def workspace():
     """工作台页面"""
     return render_template('workspace.html')
+
+@app.route('/pivot-analysis')
+def pivot_analysis():
+    """透视分析页面"""
+    return render_template('pivot_analysis.html')
 
 @app.route('/progress', methods=['GET'])
 def get_progress():
@@ -872,7 +879,7 @@ def add_row():
 def get_table_groups():
     """获取所有表格分组"""
     try:
-        from models.database import TableGroup
+        from models.database import TableGroup, TableSchema
         groups = TableGroup.query.order_by(TableGroup.updated_at.desc()).all()
         
         groups_data = []
@@ -884,6 +891,20 @@ def get_table_groups():
             mappings = ColumnMapping.query.filter_by(table_group_id=group.id).all()
             group_dict['has_mappings'] = len(mappings) > 0
             group_dict['mapping_count'] = len(mappings)
+            
+            # 获取字段信息用于搜索
+            schema_records = TableSchema.query.filter_by(table_group_id=group.id).all()
+            if schema_records:
+                # 获取所有字段名，去重
+                all_fields = set()
+                for schema_record in schema_records:
+                    if schema_record.column_name:
+                        field = schema_record.column_name.strip()
+                        if field and field not in ['id', 'source_file', 'created_at', 'updated_at', 'table_group_id']:
+                            all_fields.add(field)
+                group_dict['fields'] = list(all_fields)
+            else:
+                group_dict['fields'] = []
             
             groups_data.append(group_dict)
         
@@ -1318,6 +1339,64 @@ def test_deepseek_connection():
             'success': False,
             'message': f'连接测试失败: {str(e)}',
             'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+@app.route('/test-api-connection', methods=['POST'])
+def test_api_connection():
+    """通用API连接测试"""
+    try:
+        data = request.get_json()
+        provider = data.get('provider', 'deepseek')
+        url = data.get('url', '')
+        key = data.get('key', '')
+        model = data.get('model', 'deepseek-chat')
+        
+        print(f"[API测试] 提供商: {provider}, URL: {url}, 模型: {model}")
+        
+        if not url or not key:
+            return jsonify({
+                'success': False,
+                'error': 'API地址和API Key不能为空'
+            })
+        
+        # 目前主要支持DeepSeek API测试
+        if provider == 'deepseek':
+            try:
+                # 使用自定义配置创建DeepSeek客户端
+                os.environ['DEEPSEEK_API_KEY'] = key  # 临时设置环境变量
+                api_client = DeepSeekAPIClient(api_key=key)
+                api_client.base_url = url if url.endswith('/v1/chat/completions') else f"{url}/v1/chat/completions"
+                api_client.model = model
+                
+                success, message = api_client.test_connection()
+                
+                return jsonify({
+                    'success': success,
+                    'message': message if success else f'测试失败: {message}',
+                    'provider': provider,
+                    'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+                
+            except Exception as e:
+                return jsonify({
+                    'success': False,
+                    'error': f'DeepSeek API测试失败: {str(e)}',
+                    'provider': provider
+                })
+        else:
+            # 对于其他API提供商，返回简单的响应
+            return jsonify({
+                'success': True,
+                'message': f'{provider} API配置已保存（暂不支持连接测试）',
+                'provider': provider,
+                'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
+        
+    except Exception as e:
+        print(f"[API测试错误] {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'测试过程中出错: {str(e)}'
         })
 
 
@@ -1940,6 +2019,284 @@ def export_global_search_results():
         
     except Exception as e:
         print(f"[错误] 导出全局搜索结果时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ==================== 透视分析 API ====================
+
+@app.route('/api/generate-pivot-table', methods=['POST'])
+def generate_pivot_table():
+    """生成透视表"""
+    try:
+        data = request.get_json()
+        group_id = data.get('group_id')
+        row_fields = data.get('row_fields', [])
+        column_fields = data.get('column_fields', [])
+        value_fields = data.get('value_fields', [])
+        
+        print(f"[透视分析] 接收到请求: 分组ID={group_id}, 行字段={row_fields}, 列字段={column_fields}, 数值字段={value_fields}")
+        
+        if not group_id:
+            return jsonify({'success': False, 'message': '请选择数据源'})
+        
+        # 放宽验证条件，允许各种组合
+        if not row_fields and not column_fields and not value_fields:
+            return jsonify({'success': False, 'message': '请至少添加一个字段'})
+        
+        # 获取数据
+        from models.database import TableGroup
+        group = TableGroup.query.get(group_id)
+        if not group:
+            return jsonify({'success': False, 'message': '数据源不存在'})
+        
+        # 获取该分组的数据
+        data_records = TableData.query.filter_by(table_group_id=group_id).all()
+        
+        if not data_records:
+            return jsonify({'success': False, 'message': '数据源没有数据'})
+        
+        # 转换为字典列表
+        raw_data = [record.to_dict() for record in data_records]
+        
+        print(f"[透视分析] 获取到 {len(raw_data)} 条数据记录")
+        
+        # 检查pandas是否可用
+        if not HAS_PANDAS:
+            return jsonify({'success': False, 'message': 'pandas未安装，无法生成透视表'})
+        
+        # 创建DataFrame
+        df = pd.DataFrame(raw_data)
+        
+        # 验证字段是否存在
+        all_fields = row_fields + column_fields + value_fields
+        missing_fields = [field for field in all_fields if field not in df.columns]
+        if missing_fields:
+            return jsonify({'success': False, 'message': f'字段不存在: {", ".join(missing_fields)}'})
+        
+        # 将数值字段转换为数字类型
+        for field in value_fields:
+            df[field] = pd.to_numeric(df[field], errors='coerce').fillna(0)
+        
+        try:
+            result_data = []
+            
+            # 情况1：只有行字段和列字段，没有数值字段 - 计数透视
+            if (row_fields or column_fields) and not value_fields:
+                group_fields = row_fields + column_fields
+                if group_fields:
+                    grouped = df.groupby(group_fields).size().reset_index(name='计数')
+                    result_data = grouped.to_dict('records')
+                    print(f"[透视分析] 计数透视完成，共 {len(result_data)} 行")
+            
+            # 情况2：只有数值字段，没有行列字段 - 总计
+            elif not row_fields and not column_fields and value_fields:
+                totals = {}
+                for field in value_fields:
+                    totals[field] = df[field].sum()
+                totals['类型'] = '总计'
+                result_data = [totals]
+                print(f"[透视分析] 总计完成")
+            
+            # 情况3：有行字段或列字段，也有数值字段 - 完整透视表
+            elif (row_fields or column_fields) and value_fields:
+                # 准备透视表参数
+                pivot_params = {
+                    'data': df,
+                    'values': value_fields,
+                    'aggfunc': 'sum',
+                    'fill_value': 0
+                }
+                
+                # 添加index参数（行字段）
+                if row_fields:
+                    pivot_params['index'] = row_fields
+                
+                # 添加columns参数（列字段）
+                if column_fields:
+                    pivot_params['columns'] = column_fields
+                
+                # 生成透视表
+                pivot_table = pd.pivot_table(**pivot_params)
+
+                # 扁平化处理
+                pivot_reset = pivot_table.copy()
+
+                # 行索引还原为列
+                try:
+                    pivot_reset = pivot_reset.reset_index()
+                except Exception:
+                    pass
+
+                # 扁平化多级列名
+                def _flat_col(col):
+                    if isinstance(col, tuple):
+                        parts = [str(c) for c in col if c != '' and str(c) != 'nan']
+                        return '_'.join(parts) if parts else str(col[0])
+                    return str(col)
+
+                pivot_reset.columns = [_flat_col(c) for c in pivot_reset.columns]
+
+                # 替换 NaN 和 None
+                pivot_reset = pivot_reset.fillna(0)
+
+                # 将 numpy 标量转为 Python 基础类型
+                def _to_native(v):
+                    if hasattr(v, 'item'):
+                        try:
+                            return v.item()
+                        except:
+                            pass
+                    if pd.isna(v):
+                        return 0
+                    return v
+
+                # 清理数据类型
+                for col in pivot_reset.columns:
+                    pivot_reset[col] = pivot_reset[col].apply(_to_native)
+
+                result_data = pivot_reset.to_dict(orient='records')
+                print(f"[透视分析] 完整透视表生成成功，共 {len(result_data)} 行数据")
+            
+            else:
+                return jsonify({'success': False, 'message': '无效的字段组合'})
+            
+            # 确保结果数据中没有 NaN 值
+            import json
+            result_data = json.loads(json.dumps(result_data, default=str))
+            
+            return jsonify({
+                'success': True,
+                'pivot_data': result_data,
+                'row_count': len(result_data),
+                'message': '透视表生成成功'
+            })
+            
+        except Exception as pivot_error:
+            print(f"[透视分析] 生成透视表时出错: {str(pivot_error)}")
+            import traceback
+            traceback.print_exc()
+            
+            # 降级为简单分组聚合
+            try:
+                if row_fields or column_fields:
+                    group_fields = row_fields + column_fields
+                    if value_fields:
+                        agg_dict = {field: 'sum' for field in value_fields}
+                        grouped = df.groupby(group_fields).agg(agg_dict).reset_index()
+                    else:
+                        grouped = df.groupby(group_fields).size().reset_index(name='计数')
+                    
+                    result_data = grouped.to_dict('records')
+                    import json
+                    result_data = json.loads(json.dumps(result_data, default=str))
+                    
+                    print(f"[透视分析] 使用简单分组聚合生成结果，共 {len(result_data)} 行数据")
+                    
+                    return jsonify({
+                        'success': True,
+                        'pivot_data': result_data,
+                        'row_count': len(result_data),
+                        'message': '透视表生成成功（使用简化算法）'
+                    })
+                else:
+                    return jsonify({'success': False, 'message': '无法生成透视表'})
+                
+            except Exception as fallback_error:
+                return jsonify({'success': False, 'message': f'透视表生成失败: {str(fallback_error)}'})
+        
+    except Exception as e:
+        print(f"[透视分析] 生成透视表时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/export-pivot-table', methods=['POST'])
+def export_pivot_table():
+    """导出透视表"""
+    try:
+        data = request.get_json()
+        pivot_data = data.get('pivot_data', [])
+        
+        if not pivot_data:
+            return jsonify({'success': False, 'message': '没有透视表数据可导出'})
+        
+        print(f"[透视分析] 开始导出透视表，共 {len(pivot_data)} 条记录")
+        
+        # 创建DataFrame
+        if HAS_PANDAS:
+            df = pd.DataFrame(pivot_data)
+        else:
+            return jsonify({'success': False, 'message': 'pandas未安装，无法导出'})
+        
+        # 生成导出文件名
+        current_time = dt.datetime.now()
+        date_str = current_time.strftime("%Y%m%d_%H%M%S")
+        
+        export_filename = f'透视分析表格_{len(pivot_data)}条_{date_str}.xlsx'
+        export_path = os.path.join('static/uploads', export_filename)
+        
+        # 确保导出目录存在
+        os.makedirs(os.path.dirname(export_path), exist_ok=True)
+        
+        # 使用openpyxl写入Excel
+        from openpyxl import Workbook
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "透视分析表格"
+        
+        # 写入数据
+        for r in dataframe_to_rows(df, index=False, header=True):
+            ws.append(r)
+        
+        # 设置表头样式
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4f46e5", end_color="4f46e5", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        
+        for cell in ws[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+        
+        # 设置边框
+        thin_border = Border(
+            left=Side(border_style="thin"),
+            right=Side(border_style="thin"),
+            top=Side(border_style="thin"),
+            bottom=Side(border_style="thin")
+        )
+        
+        for row in ws.iter_rows():
+            for cell in row:
+                cell.border = thin_border
+        
+        # 自动调整列宽
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # 保存文件
+        wb.save(export_path)
+        
+        print(f"[透视分析] 透视表导出成功: {export_filename}")
+        
+        return send_file(export_path, as_attachment=True, download_name=export_filename)
+        
+    except Exception as e:
+        print(f"[透视分析] 导出透视表时出错: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)})

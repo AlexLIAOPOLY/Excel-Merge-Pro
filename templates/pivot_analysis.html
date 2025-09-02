@@ -1,0 +1,2510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>透视分析 - DataMerge Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cross-browser-select.css') }}">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        
+        /* 导航栏 - 与数据合并页一致 */
+        .navbar {
+            background: rgba(252, 252, 253, 0.8);
+            backdrop-filter: blur(12px) saturate(120%);
+            -webkit-backdrop-filter: blur(12px) saturate(120%);
+            border-bottom: 1px solid rgba(229, 231, 235, 0.6);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            height: 64px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.1, 1);
+            animation: navFadeIn 0.8s cubic-bezier(0.4, 0, 0.1, 1);
+            will-change: transform, backdrop-filter;
+        }
+
+        .navbar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(229, 231, 235, 0.3), transparent);
+            opacity: 0;
+            transition: opacity 0.4s cubic-bezier(0.4, 0, 0.1, 1);
+        }
+
+        .navbar.scrolled {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(16px) saturate(140%);
+            -webkit-backdrop-filter: blur(16px) saturate(140%);
+            border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 20px rgba(0, 0, 0, 0.02);
+            height: 60px;
+        }
+
+        .navbar.scrolled::before {
+            opacity: 1;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.1, 1);
+            will-change: padding;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: #111827;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.1, 1);
+            opacity: 0;
+            animation: brandSlideIn 0.8s cubic-bezier(0.4, 0, 0.1, 1) 0.2s forwards;
+            will-change: transform, opacity;
+            position: relative;
+        }
+
+        .nav-brand:hover {
+            transform: translateY(-1px);
+            opacity: 0.8;
+        }
+
+        .nav-brand:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .nav-logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 30%, #e2e8f0 70%, #cbd5e1 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #475569;
+            font-weight: 700;
+            font-size: 16px;
+            position: relative;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.1, 1);
+            overflow: hidden;
+            cursor: pointer;
+            animation: logoBreath 4s ease-in-out infinite;
+            box-shadow:
+                0 2px 8px rgba(148, 163, 184, 0.1),
+                0 1px 3px rgba(100, 116, 139, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5),
+                inset 0 -1px 0 rgba(148, 163, 184, 0.1);
+        }
+
+        .nav-logo::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background:
+                conic-gradient(
+                    from 0deg,
+                    transparent 330deg,
+                    rgba(100, 116, 139, 0.35) 345deg,
+                    rgba(148, 163, 184, 0.5) 355deg,
+                    rgba(203, 213, 225, 0.4) 365deg,
+                    transparent 20deg,
+                    transparent
+                ),
+                linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.15), transparent);
+            background-size: 100% 100%, 200% 1px;
+            background-position: center, -100% 50%;
+            background-repeat: no-repeat;
+            border-radius: inherit;
+            z-index: -1;
+            animation:
+                rotate 4s linear infinite,
+                scanLineMove 3s linear infinite;
+            opacity: 0.7;
+        }
+
+        .nav-logo::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: radial-gradient(circle, #ffffff 0%, #f1f5f9 40%, #e2e8f0 70%, #cbd5e1 100%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: corePulse 3s ease-in-out infinite;
+            z-index: 3;
+        }
+
+        .nav-logo:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow:
+                0 6px 20px rgba(148, 163, 184, 0.15),
+                0 3px 10px rgba(100, 116, 139, 0.1),
+                0 0 15px rgba(203, 213, 225, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6),
+                inset 0 -1px 0 rgba(148, 163, 184, 0.15);
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 30%, #f1f5f9 70%, #e2e8f0 100%);
+            filter: drop-shadow(0 0 8px rgba(148, 163, 184, 0.1));
+        }
+
+        .nav-logo:hover::before {
+            animation: scanLineActive 0.8s linear infinite;
+        }
+
+        .nav-logo:hover::after {
+            animation: corePulseActive 1s ease-in-out infinite;
+            box-shadow: 0 0 15px #00f5ff, 0 0 30px #00f5ff, 0 0 45px #00f5ff;
+        }
+
+        .nav-logo:active {
+            transform: translateY(0) scale(0.98);
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.1, 1);
+        }
+
+        .nav-title {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+            color: #111827;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.1, 1);
+        }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            opacity: 0;
+            animation: menuSlideIn 0.8s cubic-bezier(0.4, 0, 0.1, 1) 0.4s forwards;
+        }
+        
+        .nav-main {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .nav-tools {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 20px;
+            position: relative;
+        }
+
+        .nav-tools::before {
+            content: '';
+            position: absolute;
+            left: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1px;
+            height: 20px;
+            background: linear-gradient(to bottom, transparent, rgba(156, 163, 175, 0.4), transparent);
+        }
+
+        .nav-link {
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 6px;
+            position: relative;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.1, 1);
+            backdrop-filter: blur(4px);
+            overflow: hidden;
+        }
+
+        .nav-link::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(107, 114, 128, 0.04) 0%, rgba(107, 114, 128, 0.08) 100%);
+            border-radius: 6px;
+            opacity: 0;
+            transform: scale(0.95) translateY(2px);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.6s cubic-bezier(0.4, 0, 0.1, 1);
+        }
+
+        .nav-link:hover::before {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+
+        .nav-link:hover::after {
+            left: 100%;
+        }
+
+        .nav-link:hover {
+            color: #374151;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(107, 114, 128, 0.15);
+        }
+
+        .nav-link:active {
+            transform: translateY(0) scale(0.98);
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.1, 1);
+        }
+
+        .nav-link.active {
+            color: #111827;
+            background: linear-gradient(135deg, rgba(107, 114, 128, 0.08) 0%, rgba(107, 114, 128, 0.12) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(107, 114, 128, 0.1);
+        }
+
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            width: 16px;
+            height: 1.5px;
+            background: linear-gradient(90deg, transparent, #6b7280, transparent);
+            border-radius: 0.75px;
+            transform: translateX(-50%);
+            animation: activeSlide 0.4s cubic-bezier(0.4, 0, 0.1, 1);
+        }
+
+        .config-btn {
+            background: none !important;
+            border: none;
+            cursor: pointer;
+            color: #6b7280 !important;
+            font-family: inherit;
+            font-size: 14px !important;
+            font-weight: 500;
+        }
+
+        .config-btn:hover {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.12) 100%) !important;
+            color: #059669 !important;
+        }
+
+        /* 移动端汉堡菜单 */
+        .nav-toggle {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            gap: 4px;
+        }
+
+        .nav-toggle:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .nav-toggle span {
+            width: 20px;
+            height: 2px;
+            background: #333;
+            border-radius: 1px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: center;
+        }
+
+        .nav-toggle.active span:nth-child(1) {
+            transform: rotate(45deg) translateY(6px);
+        }
+
+        .nav-toggle.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .nav-toggle.active span:nth-child(3) {
+            transform: rotate(-45deg) translateY(-6px);
+        }
+
+        .nav-menu-mobile {
+            display: none;
+            position: fixed;
+            top: 64px;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(12px) saturate(120%);
+            -webkit-backdrop-filter: blur(12px) saturate(120%);
+            border-bottom: 1px solid rgba(229, 231, 235, 0.6);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            z-index: 999;
+            padding: 20px 24px;
+        }
+
+        .nav-menu-mobile.active {
+            display: block;
+        }
+
+        .nav-menu-mobile .nav-link {
+            display: block;
+            padding: 16px 18px;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        /* 媒体查询 - 导航栏响应式一致 */
+        @media (max-width: 768px) {
+            .navbar { height: 56px; }
+            .navbar.scrolled { height: 52px; }
+            .nav-container { padding: 0 16px; }
+            .nav-menu { display: none; }
+            .nav-tools { margin-left: 16px; padding-left: 16px; }
+            .nav-toggle { display: flex; }
+            .nav-menu-mobile { top: 64px; }
+            .nav-brand { gap: 12px; }
+            .nav-logo { width: 36px; height: 36px; font-size: 16px; border-radius: 10px; }
+            .nav-title { font-size: 18px; }
+        }
+
+        @media (max-width: 480px) {
+            .navbar { height: 56px; }
+            .nav-container { padding: 0 12px; }
+            .nav-brand { gap: 8px; }
+            .nav-logo { width: 32px; height: 32px; font-size: 14px; border-radius: 8px; }
+            .nav-title { font-size: 16px; }
+            .nav-menu-mobile { top: 56px; padding: 16px 20px; }
+            .nav-menu-mobile .nav-link { padding: 14px 16px; font-size: 15px; }
+        }
+
+        @media (min-width: 1600px) {
+            .nav-container { padding: 0 48px; }
+            .navbar { height: 80px; }
+            .nav-logo { width: 46px; height: 46px; font-size: 20px; }
+            .nav-title { font-size: 24px; }
+        }
+
+        /* 关键帧动画（与数据合并页一致）*/
+        @keyframes navFadeIn { 0% { opacity: 0; transform: translateY(-10px);} 100% { opacity: 1; transform: translateY(0);} }
+        @keyframes brandSlideIn { 0% { opacity: 0; transform: translateX(-20px);} 100% { opacity: 1; transform: translateX(0);} }
+        @keyframes menuSlideIn { 0% { opacity: 0; transform: translateX(20px);} 100% { opacity: 1; transform: translateX(0);} }
+        @keyframes scanLineActive { 0% { left: -100%; opacity: 0; height: 1px;} 50% { opacity: 1; height: 2px;} 100% { left: 100%; opacity: 0; height: 1px; } }
+        @keyframes corePulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; box-shadow: 0 0 8px rgba(148, 163, 184, 0.2), 0 0 15px rgba(203, 213, 225, 0.15), 0 0 25px rgba(226, 232, 240, 0.1);} 50% { transform: translate(-50%, -50%) scale(1.4); opacity: 0.9; box-shadow: 0 0 15px rgba(148, 163, 184, 0.4), 0 0 25px rgba(203, 213, 225, 0.3), 0 0 35px rgba(226, 232, 240, 0.2), 0 0 45px rgba(248, 250, 252, 0.1);} }
+        @keyframes corePulseActive { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.9;} 50% { transform: translate(-50%, -50%) scale(1.5); opacity: 1;} }
+        @keyframes rotate { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+        @keyframes scanLineMove { 0% { background-position: center, -100% 50%; } 50% { background-position: center, 0% 50%; } 100% { background-position: center, 100% 50%; } }
+        @keyframes logoBreath { 0%, 100% { box-shadow: 0 4px 12px rgba(148, 163, 184, 0.2), 0 1px 3px rgba(100, 116, 139, 0.08), 0 0 10px rgba(203, 213, 225, 0.15), 0 0 20px rgba(226, 232, 240, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(148, 163, 184, 0.15);} 50% { box-shadow: 0 8px 20px rgba(148, 163, 184, 0.25), 0 4px 12px rgba(100, 116, 139, 0.15), 0 0 20px rgba(203, 213, 225, 0.2), 0 0 30px rgba(226, 232, 240, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(148, 163, 184, 0.2); transform: scale(1.05); filter: brightness(1.1);} }
+        
+        /* 主容器 */
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        
+        /* 透视分析主界面 */
+        .pivot-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+            min-height: 70vh;
+        }
+        
+        /* 配置面板 */
+        .config-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+        
+        .config-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .config-section {
+            margin-bottom: 24px;
+        }
+        
+        .config-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .section-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+            display: block;
+        }
+        
+        .field-dropdown {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        /* 可搜索选择器样式 */
+        .searchable-select-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .searchable-select-input {
+            width: 100%;
+            padding: 10px 40px 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            color: #374151;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .searchable-select-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .searchable-select-arrow {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: #6b7280;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.2s ease;
+        }
+
+        .searchable-select-container.open .searchable-select-arrow {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
+        .searchable-select-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+            margin-top: 4px;
+            max-height: 300px;
+            overflow: hidden;
+        }
+
+        .searchable-select-dropdown.show {
+            display: block;
+        }
+
+        .searchable-select-search {
+            width: 100%;
+            padding: 10px 12px;
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+            background: #f9fafb;
+        }
+
+        .searchable-select-search:focus {
+            outline: none;
+            background: #f3f4f6;
+        }
+
+        .searchable-select-options {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .searchable-select-option {
+            padding: 10px 12px;
+            font-size: 14px;
+            color: #374151;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .searchable-select-option:hover {
+            background: #f9fafb;
+        }
+
+        .searchable-select-option.selected {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .searchable-select-option.hidden {
+            display: none;
+        }
+        
+        .searchable-select-option.focused {
+            background-color: #f1f5f9;
+        }
+        
+        .field-list {
+            min-height: 100px;
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 12px;
+            background: #f9fafb;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .field-list.drag-over { border-color: #60a5fa; background: #eff6ff; }
+        .field-list.drag-over.valid { border-color: #60a5fa; background: #eff6ff; }
+        .field-list.drag-over.invalid { border-color: #fca5a5; background: #fef2f2; }
+        
+        .field-item {
+            background: #f8fafc;
+            color: #475569;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+
+        /* 数值字段强调样式 */
+        .field-item.numeric {
+            background: #f8fafc;
+            color: #475569;
+            border: 2px solid #fcd34d;
+            box-shadow: 0 1px 3px rgba(252, 211, 77, 0.1);
+        }
+
+        .field-item.numeric:hover {
+            background: #f8fafc;
+            border-color: #fbbf24;
+            box-shadow: 0 2px 4px rgba(251, 191, 36, 0.15);
+        }
+
+        /* 拖拽时的强调效果 */
+        .field-item.dragging {
+            opacity: 0.8;
+            transform: rotate(2deg);
+            z-index: 1000;
+        }
+
+        .field-item.numeric.dragging {
+            box-shadow: 0 4px 12px rgba(252, 211, 77, 0.25);
+        }
+
+        .field-item span { font-weight: 600; }
+
+        .field-item.disabled {
+            background: #f3f4f6;
+            color: #9ca3af;
+            border-color: #e5e7eb;
+            cursor: not-allowed;
+        }
+        
+        .field-remove {
+            background: none;
+            border: none;
+            color: #93c5fd;
+            cursor: pointer;
+            font-size: 14px;
+            opacity: 0.8;
+            transition: opacity 0.2s ease;
+        }
+        
+        .field-remove:hover {
+            opacity: 1;
+        }
+        
+        .empty-placeholder {
+            color: #9ca3af;
+            font-size: 13px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* 区域提示 */
+        .area-hint {
+            position: absolute;
+            left: 12px;
+            bottom: 6px;
+            font-size: 12px;
+            color: #64748b;
+            pointer-events: none;
+        }
+        .area-hint.warn { color: #b45309; }
+        .area-hint.error { color: #b91c1c; }
+        .area-hint.success { color: #059669; }
+        
+        /* 操作按钮 */
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .btn {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-primary:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+        
+        /* 结果面板（占满高度，内部自适应）*/
+        .result-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            height: 100%;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .result-header {
+            background: #f8fafc;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between; /* 修正：有效的分布方式，避免重叠 */
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .result-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .result-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .tab-button {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: #64748b;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .tab-button.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+        
+        .tab-content {
+            padding: 16px 24px 24px;
+            min-height: 0;
+            flex: 1;
+            overflow: hidden; /* 由子面板控制滚动 */
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .tab-pane { display: none; }
+        .tab-pane.active {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
+        
+        /* 透视表样式 */
+        .pivot-table-container {
+            overflow: auto;
+            max-height: none;
+            height: 100%;
+        }
+        #pivotTableContainer { flex: 1; min-height: 0; overflow: auto; }
+        
+        .pivot-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .pivot-table th {
+            background: #f1f5f9;
+            color: #374151;
+            font-weight: 600;
+            padding: 12px 16px;
+            text-align: left;
+            border: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+        
+        .pivot-table td {
+            padding: 10px 16px;
+            border: 1px solid #e2e8f0;
+            color: #374151;
+        }
+        
+        .pivot-table tbody tr:hover {
+            background: #f8fafc;
+        }
+        
+        /* 图表容器 */
+        .chart-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: stretch;
+            justify-content: stretch;
+            color: #64748b;
+        }
+        
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+        
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+        
+        .empty-state p {
+            font-size: 14px;
+        }
+        
+        /* 加载状态 */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+        
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .pivot-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 45% 55%;
+                gap: 12px;
+                height: 100%;
+            }
+            .config-panel { order: 1; min-height: 0; }
+            .result-panel { order: 2; min-height: 0; }
+        }
+        
+        /* 图表类型选择器 */
+        .chart-type-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .chart-type-btn {
+            padding: 8px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .chart-type-btn.active {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            color: #3b82f6;
+        }
+        
+        .chart-type-btn:hover {
+            border-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        /* 自定义坐标轴选择器（更美观） */
+        .chart-axes { 
+            display: none; 
+            gap: 16px; 
+            align-items: center; 
+            margin-bottom: 12px; 
+            flex-wrap: wrap; 
+        }
+        .axis-select label, .axis-multi label { 
+            display: block; 
+            font-size: 13px; 
+            color: #475569; 
+            margin-bottom: 6px; 
+            font-weight: 600; 
+        }
+        .axis-select select { min-width: 200px; }
+        .axis-multi { position: relative; }
+        .axis-multi-box {
+            min-width: 300px;
+            min-height: 40px;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all .2s ease;
+        }
+        .axis-multi-box:hover { border-color: #cbd5e1; }
+        .axis-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .axis-chip {
+            background: #eef5ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .axis-chip .remove { cursor: pointer; color: #60a5fa; }
+        .axis-placeholder { color: #9ca3af; font-size: 13px; }
+        .axis-caret { margin-left: auto; color: #64748b; }
+        .axis-multi-dropdown {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            z-index: 50;
+            min-width: 300px;
+            max-height: 240px;
+            overflow: auto;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            display: none;
+        }
+        .axis-multi-dropdown.show { display: block; }
+        .axis-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; }
+        .axis-option:hover { background: #f8fafc; }
+        .axis-hint { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏（与数据合并页一致） -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="nav-brand">
+                <div class="nav-logo">DM</div>
+                <div>
+                    <div class="nav-title">DataMerge Pro</div>
+                </div>
+            </a>
+
+            <!-- 桌面端菜单 -->
+            <div class="nav-menu">
+                <div class="nav-main">
+                    <a href="/" class="nav-link">数据合并</a>
+                    <a href="/pivot-analysis" class="nav-link active">透视分析</a>
+                </div>
+                <div class="nav-tools">
+                    <a href="/workspace" class="nav-link">工作台</a>
+                    <a href="#" class="nav-link">使用帮助</a>
+                    <button class="nav-link config-btn" onclick="showAPIConfigModal()">API配置</button>
+                </div>
+            </div>
+
+            <!-- 移动端汉堡菜单按钮 -->
+            <div class="nav-toggle" id="navToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 移动端菜单 -->
+    <div class="nav-menu-mobile" id="navMenuMobile">
+        <a href="/" class="nav-link">数据合并</a>
+        <a href="/pivot-analysis" class="nav-link active">透视分析</a>
+        <a href="/workspace" class="nav-link">工作台</a>
+        <a href="#" class="nav-link">使用帮助</a>
+        <button class="nav-link config-btn" onclick="showAPIConfigModal(); closeNavMenu();">API配置</button>
+    </div>
+    
+    <!-- 主内容 -->
+    <div class="main-container">
+        <!-- 透视分析主界面 -->
+        <div class="pivot-container">
+            <!-- 配置面板 -->
+            <div class="config-panel">
+                <h3 class="config-title">
+                    透视表配置
+                </h3>
+                
+                <!-- 数据源选择 -->
+                <div class="config-section">
+                    <label class="section-label">数据源</label>
+                    <div class="searchable-select-container">
+                        <input 
+                            type="text" 
+                            id="dataSourceInput" 
+                            class="searchable-select-input" 
+                            placeholder="选择数据表格..." 
+                            readonly
+                            onclick="toggleDataSourceDropdown()"
+                        >
+                        <div class="searchable-select-arrow" onclick="toggleDataSourceDropdown()">▼</div>
+                        <div id="dataSourceDropdown" class="searchable-select-dropdown">
+                            <input 
+                                type="text" 
+                                id="dataSourceSearch" 
+                                class="searchable-select-search" 
+                                placeholder="搜索表格名或字段名..." 
+                                oninput="filterDataSources()"
+                            >
+                            <div id="dataSourceOptions" class="searchable-select-options">
+                                <!-- 选项将动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 可用字段 -->
+                <div class="config-section">
+                    <label class="section-label">可用字段</label>
+                    <div id="availableFields" class="field-list" style="max-height: 160px; overflow-y: auto;" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="empty-placeholder">请先选择数据源</div>
+                    </div>
+
+                </div>
+                
+                <!-- 行字段 -->
+                <div class="config-section">
+                    <label class="section-label">行字段</label>
+                    <div id="rowFields" class="field-list" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="empty-placeholder">将字段拖拽到此处</div>
+                    </div>
+
+                </div>
+                
+                <!-- 列字段 -->
+                <div class="config-section">
+                    <label class="section-label">列字段</label>
+                    <div id="columnFields" class="field-list" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="empty-placeholder">将字段拖拽到此处</div>
+                    </div>
+
+                </div>
+                
+                <!-- 数值字段 -->
+                <div class="config-section">
+                    <label class="section-label">数值字段</label>
+                    <div id="valueFields" class="field-list" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="empty-placeholder">将字段拖拽到此处</div>
+                    </div>
+
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" onclick="clearAllFields()">
+                        清空配置
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 结果面板 -->
+            <div class="result-panel">
+                <div class="result-header">
+                    <h3 class="result-title">分析结果</h3>
+                    <div class="result-actions">
+                        <button class="btn btn-secondary btn-sm" id="exportTableBtn" onclick="exportPivotTable()" style="display: none;">
+                            导出表格
+                        </button>
+                        <button class="btn btn-secondary btn-sm" id="exportChartBtn" onclick="exportChart()" style="display: none;">
+                            导出图表
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 标签导航 -->
+                <div class="tab-nav">
+                    <button class="tab-button active" onclick="switchTab('table')">透视表</button>
+                    <button class="tab-button" onclick="switchTab('chart')">透视图</button>
+                </div>
+                
+                <!-- 标签内容 -->
+                <div class="tab-content">
+                    <!-- 透视表标签 -->
+                    <div id="tableTab" class="tab-pane active">
+                        <div id="pivotTableContainer">
+                            <div class="empty-state">
+                                <h3>暂无数据</h3>
+                                <p>请配置透视表字段并生成分析结果</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 透视图标签 -->
+                    <div id="chartTab" class="tab-pane">
+                        <!-- 图表类型选择器 -->
+                        <div class="chart-type-selector" style="display: none;" id="chartTypeSelector">
+                            <button class="chart-type-btn active" onclick="changeChartType('bar')">柱状图</button>
+                            <button class="chart-type-btn" onclick="changeChartType('line')">折线图</button>
+                            <button class="chart-type-btn" onclick="changeChartType('pie')">饼图</button>
+                            <button class="chart-type-btn" onclick="changeChartType('area')">面积图</button>
+                        </div>
+                        
+                        <!-- 自定义坐标轴（更美观） -->
+                        <div class="chart-axes" id="chartAxes">
+                            <div class="axis-select">
+                                <label>X轴</label>
+                                <select id="xAxisSelect" class="cross-browser-select"></select>
+                            </div>
+                            <div class="axis-multi">
+                                <label>Y轴</label>
+                                <div id="yAxisBox" class="axis-multi-box" onclick="toggleYAxisDropdown(event)">
+                                    <div id="yAxisChips" class="axis-chips">
+                                        <span class="axis-placeholder">选择数值字段...</span>
+                                    </div>
+                                    <div class="axis-caret">▾</div>
+                                </div>
+                                <div id="yAxisDropdown" class="axis-multi-dropdown"></div>
+                                <div class="axis-hint">(可多选)</div>
+                            </div>
+                        </div>
+                        
+                        <div id="chartContainer" class="chart-container">
+                            <div class="empty-state">
+                                <h3>暂无图表</h3>
+                                <p>请先生成透视表数据后再查看图表</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入Chart.js用于图表生成 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // 导航栏交互（与数据合并页一致的精简实现）
+        document.addEventListener('DOMContentLoaded', function() {
+            const navbar = document.getElementById('navbar');
+            const navToggle = document.getElementById('navToggle');
+            const navMenuMobile = document.getElementById('navMenuMobile');
+
+            // 滚动效果
+            function handleScroll() {
+                if (!navbar) return;
+                if (window.scrollY > 50) {
+                    navbar.classList.add('scrolled');
+                } else {
+                    navbar.classList.remove('scrolled');
+                }
+            }
+            window.addEventListener('scroll', handleScroll, { passive: true });
+            handleScroll();
+
+            // 移动端菜单切换
+            function toggleMobileMenu() {
+                if (!navToggle || !navMenuMobile) return;
+                navToggle.classList.toggle('active');
+                navMenuMobile.classList.toggle('active');
+                document.body.style.overflow = navMenuMobile.classList.contains('active') ? 'hidden' : '';
+            }
+
+            if (navToggle) {
+                navToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggleMobileMenu();
+                });
+            }
+
+            if (navMenuMobile) {
+                navMenuMobile.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('nav-link')) {
+                        toggleMobileMenu();
+                    }
+                });
+            }
+
+            document.addEventListener('click', function(e) {
+                if (!navMenuMobile || !navToggle) return;
+                if (navMenuMobile.classList.contains('active')) {
+                    if (!navMenuMobile.contains(e.target) && !navToggle.contains(e.target)) {
+                        toggleMobileMenu();
+                    }
+                }
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && navMenuMobile && navMenuMobile.classList.contains('active')) {
+                    toggleMobileMenu();
+                }
+            });
+        });
+
+        function closeNavMenu() {
+            const navToggle = document.getElementById('navToggle');
+            const navMenuMobile = document.getElementById('navMenuMobile');
+            if (navToggle && navMenuMobile && navMenuMobile.classList.contains('active')) {
+                navToggle.classList.remove('active');
+                navMenuMobile.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        let currentTableData = null;
+        let currentPivotData = null;
+        let currentChart = null;
+        let currentChartType = 'bar';
+        let draggedField = null;
+        let draggedFrom = null; // 'available' | 'rowFields' | 'columnFields' | 'valueFields'
+        let yAxisSelected = new Set();
+        let allBusinessFields = [];
+        let numericFieldSet = new Set();
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDataSources();
+        });
+        
+        // 存储所有数据源
+        let allDataSources = [];
+        
+        // 加载数据源列表
+        async function loadDataSources() {
+            try {
+                const response = await fetch('/table-groups');
+                const result = await response.json();
+                
+                if (result.success && result.groups && result.groups.length > 0) {
+                    allDataSources = result.groups;
+                    console.log('数据源加载成功:', allDataSources.length, '个分组');
+                    
+                    // 默认选择第一个数据源
+                    if (allDataSources.length > 0) {
+                        const firstGroup = allDataSources[0];
+                        selectDataSource(firstGroup.id, `${firstGroup.group_name} (${firstGroup.record_count}条记录)`);
+                    }
+                } else {
+                    console.error('加载数据源失败:', result.message || '没有可用的表格分组');
+                    showNoDataMessage();
+                }
+            } catch (error) {
+                console.error('加载数据源错误:', error);
+                showNoDataMessage();
+            }
+        }
+        
+        // 显示无数据消息
+        function showNoDataMessage() {
+            const container = document.getElementById('availableFields');
+            container.innerHTML = '<div class="empty-placeholder">没有可用的表格数据<br/>请先在<a href="/" style="color: #3b82f6;">数据合并</a>页面上传Excel文件</div>';
+        }
+        
+        // 更新数据源选项
+        function updateDataSourceOptions(sources, query = '') {
+            const optionsContainer = document.getElementById('dataSourceOptions');
+            optionsContainer.innerHTML = '';
+            
+            if (sources.length === 0) {
+                // 显示无数据的提示
+                const noResult = document.createElement('div');
+                noResult.className = 'searchable-select-option';
+                noResult.style.cssText = 'color: #9ca3af; font-style: italic; cursor: default;';
+                noResult.textContent = query.trim() !== '' ? `未找到包含"${query}"的表格或字段` : '没有可用的表格数据';
+                optionsContainer.appendChild(noResult);
+                return;
+            }
+            
+            sources.forEach(group => {
+                const option = document.createElement('div');
+                option.className = 'searchable-select-option';
+                option.dataset.value = group.id;
+                
+                // 安全地获取记录数
+                const recordCount = group.record_count || 0;
+                
+                // 根据是否是字段匹配来调整显示
+                let optionText = `${group.group_name} (${recordCount}条记录)`;
+                let isFieldMatch = false;
+                
+                if (query.trim() !== '') {
+                    const nameMatch = group.group_name && group.group_name.toLowerCase().includes(query.toLowerCase());
+                    if (!nameMatch && group.fields && Array.isArray(group.fields)) {
+                        const matchedFields = group.fields.filter(field => 
+                            field && typeof field === 'string' && field.toLowerCase().includes(query.toLowerCase())
+                        );
+                        if (matchedFields.length > 0) {
+                            isFieldMatch = true;
+                            optionText = `${group.group_name} (包含字段: ${matchedFields.join(', ')})`;
+                        }
+                    }
+                }
+                
+                option.textContent = optionText;
+                
+                // 在工具提示中显示完整字段信息
+                const fieldInfo = group.fields && group.fields.length > 0 
+                    ? `完整字段: ${group.fields.join(', ')}` 
+                    : '字段: 无';
+                option.title = `表格: ${group.group_name}\n记录数: ${recordCount}\n${fieldInfo}`;
+                
+                option.onclick = () => selectDataSource(group.id, `${group.group_name} (${recordCount}条记录)`);
+                
+                // 添加鼠标悬停事件
+                option.addEventListener('mouseenter', function() {
+                    // 清除之前的焦点
+                    document.querySelectorAll('.searchable-select-option').forEach(opt => {
+                        opt.classList.remove('focused');
+                    });
+                    // 设置当前选项为焦点
+                    this.classList.add('focused');
+                });
+                
+                optionsContainer.appendChild(option);
+            });
+        }
+        
+        // 选择数据源
+        function selectDataSource(id, text) {
+            const input = document.getElementById('dataSourceInput');
+            const dropdown = document.getElementById('dataSourceDropdown');
+            const container = document.querySelector('.searchable-select-container');
+            
+            input.value = text;
+            input.dataset.value = id;
+            dropdown.classList.remove('show');
+            container.classList.remove('open');
+            
+            // 更新选中状态
+            document.querySelectorAll('.searchable-select-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            document.querySelector(`[data-value="${id}"]`).classList.add('selected');
+            
+            // 加载表格数据
+            loadTableData();
+        }
+        
+        // 切换下拉菜单
+        function toggleDataSourceDropdown() {
+            const dropdown = document.getElementById('dataSourceDropdown');
+            const container = document.querySelector('.searchable-select-container');
+            const searchInput = document.getElementById('dataSourceSearch');
+            
+            if (dropdown.classList.contains('show')) {
+                dropdown.classList.remove('show');
+                container.classList.remove('open');
+            } else {
+                dropdown.classList.add('show');
+                container.classList.add('open');
+                // 清空搜索框并显示所有选项
+                searchInput.value = '';
+                updateDataSourceOptions(allDataSources);
+                
+                // 聚焦搜索框
+                setTimeout(() => searchInput.focus(), 100);
+            }
+        }
+        
+        // 过滤数据源
+        function filterDataSources() {
+            const searchInput = document.getElementById('dataSourceSearch');
+            const query = searchInput.value.toLowerCase().trim();
+            
+            let filteredSources;
+            if (query === '') {
+                filteredSources = allDataSources;
+            } else {
+                filteredSources = allDataSources.filter(group => {
+                    // 搜索表格名称
+                    const nameMatch = group.group_name && group.group_name.toLowerCase().includes(query);
+                    
+                    // 搜索字段名称 - 确保fields存在且是数组
+                    let fieldMatch = false;
+                    if (group.fields && Array.isArray(group.fields)) {
+                        fieldMatch = group.fields.some(field => {
+                            return field && typeof field === 'string' && field.toLowerCase().includes(query);
+                        });
+                    }
+                    
+                    return nameMatch || fieldMatch;
+                });
+            }
+            
+            updateDataSourceOptions(filteredSources, query);
+            
+            // 如果有搜索结果，高亮第一个选项
+            const firstOption = document.querySelector('.searchable-select-option');
+            if (firstOption) {
+                // 清除之前的焦点
+                document.querySelectorAll('.searchable-select-option').forEach(opt => {
+                    opt.classList.remove('focused');
+                });
+                firstOption.classList.add('focused');
+            }
+        }
+        
+        // 加载表格数据
+        async function loadTableData() {
+            const input = document.getElementById('dataSourceInput');
+            const groupId = input.dataset.value;
+            
+            if (!groupId) {
+                clearAvailableFields();
+                return;
+            }
+            
+            console.log('开始加载表格数据，分组ID:', groupId);
+            
+            try {
+                const response = await fetch(`/table-groups/${groupId}/data`);
+                const result = await response.json();
+                
+                if (result.success && result.data && result.schema) {
+                    currentTableData = result.data;
+                    console.log('表格数据加载成功:', currentTableData.length, '条记录');
+                    console.log('字段结构:', result.schema);
+                    
+                    updateAvailableFields(result.schema);
+                    // 计算数值字段集合
+                    numericFieldSet = computeNumericFields(result.schema, currentTableData);
+                    console.log('数值字段:', Array.from(numericFieldSet));
+                    
+                    // 选择数据源后即可预览（原始前50行）
+                    schedulePreview();
+                } else {
+                    console.error('加载表格数据失败:', result.message);
+                    clearAvailableFields();
+                    showErrorMessage('加载数据失败: ' + (result.message || '未知错误'));
+                }
+            } catch (error) {
+                console.error('加载表格数据错误:', error);
+                clearAvailableFields();
+                showErrorMessage('网络错误，请稍后重试');
+            }
+        }
+        
+        // 显示错误消息
+        function showErrorMessage(message) {
+            const container = document.getElementById('availableFields');
+            container.innerHTML = `<div class="empty-placeholder" style="color: #ef4444;">${message}</div>`;
+        }
+        
+        // 更新可用字段
+        function updateAvailableFields(schema) {
+            // 存储所有业务字段
+            const systemFields = ['id', 'source_file', 'created_at', 'updated_at', 'table_group_id'];
+            allBusinessFields = schema.filter(field => field && field.trim() && !systemFields.includes(field));
+            
+            console.log('业务字段:', allBusinessFields);
+            
+            if (allBusinessFields.length === 0) {
+                showErrorMessage('没有可用的业务字段');
+                return;
+            }
+            
+            refreshAvailableFields();
+            updateFieldCounters();
+        }
+
+        function refreshAvailableFields() {
+            const container = document.getElementById('availableFields');
+            container.innerHTML = '';
+            const selected = getSelectedFieldsMap().all;
+
+            const remain = allBusinessFields.filter(f => !selected.has(f));
+            if (remain.length === 0) {
+                container.innerHTML = '<div class="empty-placeholder">没有可用字段（已全部选择或暂无数据）</div>';
+                return;
+            }
+
+            console.log('刷新可用字段:', remain);
+
+            remain.forEach(field => {
+                const fieldElement = document.createElement('div');
+                fieldElement.className = numericFieldSet.has(field) ? 'field-item numeric' : 'field-item';
+                fieldElement.draggable = true;
+                fieldElement.textContent = field;
+                fieldElement.title = numericFieldSet.has(field) ? '数值字段' : '维度字段';
+                
+                fieldElement.ondragstart = function(e) {
+                    console.log('开始拖拽字段:', field);
+                    draggedField = field;
+                    draggedFrom = 'availableFields';
+                    this.classList.add('dragging');
+                    try { 
+                        e.dataTransfer.setData('text/plain', field); 
+                        e.dataTransfer.effectAllowed = 'move';
+                    } catch(err) {
+                        console.warn('拖拽数据设置失败:', err);
+                    }
+                };
+                
+                fieldElement.ondragend = function(e) {
+                    this.classList.remove('dragging');
+                };
+                
+                // 添加双击事件，自动添加到合适的区域
+                fieldElement.ondblclick = function() {
+                    console.log('双击字段:', field);
+                    autoAddField(field);
+                };
+                
+                container.appendChild(fieldElement);
+            });
+        }
+        
+        // 自动添加字段到合适的区域
+        function autoAddField(fieldName) {
+            if (numericFieldSet.has(fieldName)) {
+                // 数值字段自动添加到数值字段区域
+                const valueFields = document.getElementById('valueFields');
+                if (canDropTo('valueFields', fieldName)) {
+                    addFieldToArea(valueFields, fieldName);
+                    refreshAvailableFields();
+                    updateFieldCounters();
+                    schedulePreview();
+                }
+            } else {
+                // 维度字段自动添加到行字段区域
+                const rowFields = document.getElementById('rowFields');
+                if (canDropTo('rowFields', fieldName)) {
+                    addFieldToArea(rowFields, fieldName);
+                    refreshAvailableFields();
+                    updateFieldCounters();
+                    schedulePreview();
+                }
+            }
+        }
+        
+        // 清空可用字段
+        function clearAvailableFields() {
+            document.getElementById('availableFields').innerHTML = '<div class="empty-placeholder">请先选择数据源</div>';
+            
+            // 清空所有配置区域
+            const areas = ['rowFields', 'columnFields', 'valueFields'];
+            areas.forEach(areaId => {
+                const area = document.getElementById(areaId);
+                if (area) {
+                    area.innerHTML = '<div class="empty-placeholder">将字段拖拽到此处</div>';
+                }
+            });
+            
+            // 清空全局变量
+            allBusinessFields = [];
+            numericFieldSet = new Set();
+            currentTableData = null;
+            currentPivotData = null;
+            
+            // 清空结果显示
+            clearResults();
+        }
+        
+        // 拖拽相关函数
+        function allowDrop(ev) {
+            // 允许放置，同时根据规则给出提示
+            ev.preventDefault();
+            ev.dataTransfer.dropEffect = 'move';
+            
+            const area = ev.currentTarget;
+            area.classList.add('drag-over');
+            const areaId = area.id;
+            let allowed = true;
+            let hint = '';
+
+            if (!draggedField) {
+                console.warn('没有拖拽的字段');
+                return;
+            }
+
+            console.log('允许拖拽到区域:', areaId, '字段:', draggedField);
+
+            // 目标区域已存在则不允许
+            const targetHas = new Set(getFieldsFromArea(areaId));
+            if (targetHas.has(draggedField)) {
+                allowed = false;
+                hint = '该区域已包含此字段';
+            }
+
+            // 数值字段建议放在"数值字段"区域（提示但不阻止）
+            if (areaId === 'valueFields' && !numericFieldSet.has(draggedField)) {
+                hint = '该字段可能不是数值，仍可添加';
+            } else if (areaId !== 'valueFields' && numericFieldSet.has(draggedField)) {
+                hint = '建议将数值字段放到数值字段区域';
+            }
+
+            area.classList.toggle('valid', allowed);
+            area.classList.toggle('invalid', !allowed);
+            if (hint) setAreaHint(areaId, hint, allowed ? 'warn' : 'error');
+        }
+        
+        function drop(ev) {
+            ev.preventDefault();
+            const area = ev.currentTarget;
+            area.classList.remove('drag-over', 'valid', 'invalid');
+            
+            if (!draggedField) {
+                console.warn('没有拖拽的字段可放置');
+                return;
+            }
+
+            const targetId = area.id;
+            console.log('放置字段:', draggedField, '到区域:', targetId, '来源:', draggedFrom);
+
+            // 丢到可用字段：从来源区域移除
+            if (targetId === 'availableFields') {
+                if (draggedFrom && draggedFrom !== 'availableFields') {
+                    removeFieldByName(draggedFrom, draggedField);
+                    refreshAvailableFields();
+                    updateFieldCounters();
+                    schedulePreview();
+                    setAreaHint(targetId, '字段已移回', 'success');
+                }
+                draggedField = null; draggedFrom = null;
+                return;
+            }
+
+            // 丢到某个区域：若来自其他区域，先移除
+            if (draggedFrom && draggedFrom !== 'availableFields' && draggedFrom !== targetId) {
+                removeFieldByName(draggedFrom, draggedField);
+            }
+
+            if (canDropTo(targetId, draggedField)) {
+                addFieldToArea(area, draggedField);
+                setAreaHint(targetId, '字段已添加', 'success');
+                console.log('字段添加成功:', draggedField, '到区域:', targetId);
+            } else {
+                setAreaHint(targetId, '该区域已包含此字段', 'error');
+                console.warn('字段添加失败:', draggedField, '到区域:', targetId);
+            }
+            
+            draggedField = null; 
+            draggedFrom = null;
+            refreshAvailableFields();
+            updateFieldCounters();
+            schedulePreview();
+        }
+
+        function canDropTo(areaId, fieldName) {
+            const target = new Set(getFieldsFromArea(areaId));
+            return !target.has(fieldName);
+        }
+        
+        // 添加字段到指定区域
+        function addFieldToArea(container, fieldName) {
+            // 检查字段是否已存在
+            const existing = container.querySelector(`[data-field="${fieldName}"]`);
+            if (existing) {
+                return;
+            }
+            
+            // 移除空占位符
+            const placeholder = container.querySelector('.empty-placeholder');
+            if (placeholder) {
+                placeholder.remove();
+            }
+            
+            // 创建字段元素
+            const fieldElement = document.createElement('div');
+            fieldElement.className = numericFieldSet.has(fieldName) ? 'field-item numeric' : 'field-item';
+            fieldElement.dataset.field = fieldName;
+            fieldElement.innerHTML = `
+                <span>${fieldName}</span>
+                <button class="field-remove" onclick="removeField(this)">×</button>
+            `;
+            // 支持从区域拖到其它区域或拖回可用字段
+            fieldElement.draggable = true;
+            fieldElement.ondragstart = function(e) {
+                draggedField = fieldName;
+                draggedFrom = container.id;
+                this.classList.add('dragging');
+                try { e.dataTransfer.setData('text/plain', fieldName); } catch(e) {}
+            };
+            
+            fieldElement.ondragend = function(e) {
+                this.classList.remove('dragging');
+            };
+            
+            container.appendChild(fieldElement);
+            updateFieldCounters();
+            schedulePreview();
+        }
+        
+        // 移除字段
+        function removeField(button) {
+            const fieldItem = button.closest('.field-item');
+            const container = fieldItem.parentElement;
+            
+            fieldItem.remove();
+            
+            // 如果容器为空，添加占位符
+            if (container.children.length === 0) {
+                container.innerHTML = '<div class="empty-placeholder">将字段拖拽到此处</div>';
+            }
+            refreshAvailableFields();
+            updateFieldCounters();
+            schedulePreview();
+        }
+
+        function removeFieldByName(areaId, fieldName) {
+            const area = document.getElementById(areaId);
+            if (!area) return;
+            const item = area.querySelector(`.field-item[data-field="${fieldName}"]`);
+            if (item) item.remove();
+            if (area.children.length === 0) {
+                area.innerHTML = '<div class="empty-placeholder">将字段拖拽到此处</div>';
+            }
+        }
+        
+        // 清空所有字段配置
+        function clearAllFields() {
+            const areas = ['rowFields', 'columnFields', 'valueFields'];
+            areas.forEach(areaId => {
+                const area = document.getElementById(areaId);
+                area.innerHTML = '<div class="empty-placeholder">将字段拖拽到此处</div>';
+            });
+            
+            // 清空结果
+            clearResults();
+            refreshAvailableFields();
+            updateFieldCounters();
+            schedulePreview();
+        }
+        
+        // 生成透视表
+        async function generatePivotTable() {
+            const rowFields = getFieldsFromArea('rowFields');
+            const columnFields = getFieldsFromArea('columnFields');
+            const valueFields = getFieldsFromArea('valueFields');
+            
+            // 放宽条件：支持以下三种情况
+            // 1) 仅有行/列字段：本地分组计数
+            // 2) 仅有数值字段：本地合计
+            // 3) 行/列+数值：请求后端生成正式透视
+
+            const input = document.getElementById('dataSourceInput');
+            const groupId = input.dataset.value;
+
+            // 显示加载状态
+            showLoading();
+
+            try {
+                // 本地处理 1) 或 2)
+                if ((rowFields.length + columnFields.length) >= 1 && valueFields.length === 0) {
+                    const data = buildGroupCountPreview(rowFields, columnFields);
+                    currentPivotData = data;
+                    displayPivotTable(data);
+                    document.getElementById('chartTypeSelector').style.display = 'none';
+                    hideExportButtons();
+                    return;
+                }
+                if (rowFields.length === 0 && columnFields.length === 0 && valueFields.length >= 1) {
+                    const data = buildTotalsPreview(valueFields);
+                    currentPivotData = data;
+                    displayPivotTable(data);
+                    generateChart(data);
+                    hideExportButtons();
+                    return;
+                }
+
+                // 3) 正常透视：请求后端
+                const response = await fetch('/api/generate-pivot-table', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        group_id: groupId,
+                        row_fields: rowFields,
+                        column_fields: columnFields,
+                        value_fields: valueFields
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentPivotData = result.pivot_data;
+                    displayPivotTable(result.pivot_data);
+                    generateChart(result.pivot_data);
+                    // 三类字段都存在时显示导出按钮
+                    if (rowFields.length >= 1 && columnFields.length >= 1 && valueFields.length >= 1) {
+                        showExportButtons();
+                    } else {
+                        hideExportButtons();
+                    }
+                } else {
+                    alert('生成透视表失败: ' + result.message);
+                }
+            } catch (error) {
+                console.error('生成透视表错误:', error);
+                alert('生成透视表时发生错误');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 防抖自动预览
+        let previewTimer = null;
+        function schedulePreview() {
+            if (previewTimer) clearTimeout(previewTimer);
+            previewTimer = setTimeout(generatePivotPreview, 400);
+        }
+
+        // 自动预览（静默，不弹窗）
+        async function generatePivotPreview() {
+            const rowFields = getFieldsFromArea('rowFields');
+            const columnFields = getFieldsFromArea('columnFields');
+            const valueFields = getFieldsFromArea('valueFields');
+            const input = document.getElementById('dataSourceInput');
+            const groupId = input.dataset.value;
+
+            // 无数据源时不处理
+            if (!groupId) return;
+
+            // 1) 若选择了行/列但没有数值字段：本地预览（显示分组+记录数）
+            if ((rowFields.length + columnFields.length) >= 1 && valueFields.length === 0) {
+                const fallback = buildGroupCountPreview(rowFields, columnFields);
+                currentPivotData = fallback;
+                displayPivotTable(fallback);
+                // 无数值，不展示图表选择器
+                document.getElementById('chartTypeSelector').style.display = 'none';
+                const axes = document.getElementById('chartAxes'); if (axes) axes.style.display = 'none';
+                document.getElementById('chartContainer').innerHTML = '<div class="empty-state"><h3>暂无图表</h3><p>添加数值字段后可查看图表</p></div>';
+                hideExportButtons();
+                return;
+            }
+
+            // 2) 若没有行/列，但选择了数值字段：展示各数值字段合计
+            if (rowFields.length === 0 && columnFields.length === 0 && valueFields.length >= 1) {
+                const fallback = buildTotalsPreview(valueFields);
+                currentPivotData = fallback;
+                displayPivotTable(fallback);
+                // 合计也可展示图表
+                generateChart(fallback);
+                hideExportButtons();
+                return;
+            }
+
+            // 3) 若什么都没选：显示原始数据前50行
+            if (rowFields.length === 0 && columnFields.length === 0 && valueFields.length === 0) {
+                const sample = buildRawPreview(50);
+                currentPivotData = sample;
+                displayPivotTable(sample);
+                document.getElementById('chartTypeSelector').style.display = 'none';
+                const axes2 = document.getElementById('chartAxes'); if (axes2) axes2.style.display = 'none';
+                document.getElementById('chartContainer').innerHTML = '<div class="empty-state"><h3>暂无图表</h3><p>添加数值字段后可查看图表</p></div>';
+                hideExportButtons();
+                return;
+            }
+
+            // 加载与预览
+            showLoading();
+            try {
+                const response = await fetch('/api/generate-pivot-table', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        group_id: groupId,
+                        row_fields: rowFields,
+                        column_fields: columnFields,
+                        value_fields: valueFields
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    currentPivotData = result.pivot_data;
+                    displayPivotTable(result.pivot_data);
+                    generateChart(result.pivot_data);
+                    // 三类字段都存在时显示导出按钮，否则隐藏
+                    if (rowFields.length >= 1 && columnFields.length >= 1 && valueFields.length >= 1) {
+                        showExportButtons();
+                    } else {
+                        hideExportButtons();
+                    }
+                } else {
+                    document.getElementById('pivotTableContainer').innerHTML = '<div class="empty-state"><h3>生成失败</h3><p>' + (result.message || '请稍后重试') + '</p></div>';
+                }
+            } catch (e) {
+                console.error('预览错误:', e);
+            }
+        }
+
+        // 构建分组+计数的预览数据（无数值字段时）
+        function buildGroupCountPreview(rowFields, columnFields) {
+            const dims = [...rowFields, ...columnFields];
+            const map = new Map();
+            (currentTableData || []).forEach(row => {
+                const keyParts = dims.map(f => row[f]);
+                const key = JSON.stringify(keyParts);
+                map.set(key, (map.get(key) || 0) + 1);
+            });
+            const result = [];
+            map.forEach((count, key) => {
+                const parts = JSON.parse(key);
+                const obj = {};
+                dims.forEach((f, idx) => obj[f] = parts[idx]);
+                obj['记录数'] = count;
+                result.push(obj);
+            });
+            // 排序：记录数降序
+            result.sort((a, b) => (b['记录数'] || 0) - (a['记录数'] || 0));
+            return result.slice(0, 1000); // 防止过大
+        }
+
+        // 构建仅数值字段合计的预览数据（无行列字段时）
+        function buildTotalsPreview(valueFields) {
+            const totals = {};
+            valueFields.forEach(f => totals[f] = 0);
+            (currentTableData || []).forEach(row => {
+                valueFields.forEach(f => {
+                    const n = Number(row[f]);
+                    if (!Number.isNaN(n) && Number.isFinite(n)) totals[f] += n;
+                });
+            });
+            const obj = { 分组: '合计' };
+            Object.assign(obj, totals);
+            return [obj];
+        }
+
+        // 构建原始数据前N行
+        function buildRawPreview(n = 50) {
+            const rows = (currentTableData || []).slice(0, n);
+            if (!rows.length) return [];
+            // 仅展示业务字段
+            const fields = allBusinessFields && allBusinessFields.length ? allBusinessFields : Object.keys(rows[0] || {});
+            return rows.map(r => {
+                const obj = {};
+                fields.forEach(f => obj[f] = r[f]);
+                return obj;
+            });
+        }
+        
+        // 从区域获取字段列表
+        function getFieldsFromArea(areaId) {
+            const area = document.getElementById(areaId);
+            const fieldItems = area.querySelectorAll('.field-item[data-field]');
+            return Array.from(fieldItems).map(item => item.dataset.field);
+        }
+
+        function getSelectedFieldsMap() {
+            const row = new Set(getFieldsFromArea('rowFields'));
+            const col = new Set(getFieldsFromArea('columnFields'));
+            const val = new Set(getFieldsFromArea('valueFields'));
+            const all = new Set([...row, ...col, ...val]);
+            return { row, col, val, all };
+        }
+
+        function updateFieldCounters() {
+            const areas = [
+                { id: 'rowFields', label: '行字段' },
+                { id: 'columnFields', label: '列字段' },
+                { id: 'valueFields', label: '数值字段' },
+            ];
+            areas.forEach(({ id, label }) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const count = el.querySelectorAll('.field-item[data-field]').length;
+                const labelEl = el.previousElementSibling;
+                if (labelEl && labelEl.classList.contains('section-label')) {
+                    labelEl.textContent = `${label}（${count}）`;
+                }
+            });
+        }
+
+        function setAreaHint(areaId, text, type = 'info') {
+            const area = document.getElementById(areaId);
+            if (!area) return;
+            let hint = area.querySelector('.area-hint');
+            if (!hint) {
+                hint = document.createElement('div');
+                hint.className = 'area-hint';
+                area.appendChild(hint);
+            }
+            hint.textContent = text;
+            hint.className = `area-hint ${type}`;
+            clearTimeout(hint._timer);
+            hint._timer = setTimeout(() => {
+                if (hint && hint.parentElement === area) {
+                    hint.remove();
+                }
+            }, 1600);
+        }
+
+        function computeNumericFields(schema, data) {
+            const set = new Set();
+            if (!Array.isArray(data) || data.length === 0) return set;
+            const sample = data.slice(0, 200);
+            schema.forEach(field => {
+                let seen = 0, numeric = 0;
+                for (const row of sample) {
+                    const v = row[field];
+                    if (v === null || v === '' || typeof v === 'undefined') continue;
+                    seen++;
+                    const n = Number(v);
+                    if (!Number.isNaN(n) && Number.isFinite(n)) numeric++;
+                }
+                if (seen > 0 && numeric / seen >= 0.7) set.add(field);
+            });
+            return set;
+        }
+        
+        // 显示透视表
+        function displayPivotTable(pivotData) {
+            const container = document.getElementById('pivotTableContainer');
+            
+            if (!pivotData || pivotData.length === 0) {
+                container.innerHTML = '<div class="empty-state"><h3>无数据</h3><p>根据当前配置未找到匹配的数据</p></div>';
+                return;
+            }
+            
+            // 生成表格HTML
+            let tableHtml = '<div class="pivot-table-container"><table class="pivot-table"><thead><tr>';
+            
+            // 表头
+            const headers = Object.keys(pivotData[0]);
+            headers.forEach(header => {
+                tableHtml += `<th>${header}</th>`;
+            });
+            tableHtml += '</tr></thead><tbody>';
+            
+            // 表体
+            pivotData.forEach(row => {
+                tableHtml += '<tr>';
+                headers.forEach(header => {
+                    const value = row[header] || '';
+                    tableHtml += `<td>${value}</td>`;
+                });
+                tableHtml += '</tr>';
+            });
+            
+            tableHtml += '</tbody></table></div>';
+            container.innerHTML = tableHtml;
+        }
+        
+        // 生成图表
+        function generateChart(pivotData) {
+            if (!pivotData || pivotData.length === 0) {
+                document.getElementById('chartContainer').innerHTML = '<div class="empty-state"><h3>无数据</h3><p>根据当前配置未找到匹配的数据</p></div>';
+                return;
+            }
+            
+            // 显示图表类型选择器
+            document.getElementById('chartTypeSelector').style.display = 'flex';
+            setupChartAxes(pivotData);
+            
+            // 创建图表
+            createChart(pivotData, currentChartType || 'bar');
+        }
+        
+        // 创建图表
+        function createChart(pivotData, chartType) {
+            const container = document.getElementById('chartContainer');
+            
+            // 销毁现有图表
+            if (currentChart) {
+                currentChart.destroy();
+            }
+            
+            // 创建canvas元素
+            container.innerHTML = '<canvas id="pivotChart" style="width:100%;height:100%;"></canvas>';
+            const ctx = document.getElementById('pivotChart').getContext('2d');
+            
+            // 读取自定义坐标轴选择
+            const headers = Object.keys(pivotData[0]);
+            const xSelect = document.getElementById('xAxisSelect');
+            const xField = (xSelect && xSelect.value) ? xSelect.value : headers[0];
+            let yFields = Array.from(yAxisSelected);
+            if (!yFields || yFields.length === 0) {
+                // 回退：选择除x以外的数值列
+                const numericHeaders = detectNumericHeaders(pivotData);
+                yFields = numericHeaders.filter(h => h !== xField);
+                if (yFields.length === 0 && headers.length > 1) {
+                    yFields = headers.filter(h => h !== xField).slice(0, 1);
+                }
+            }
+
+            // 构建 labels 和 datasets
+            const labels = pivotData.map(row => row[xField]);
+            const datasets = [];
+
+            // 饼图只支持单一数据系列
+            const series = chartType === 'pie' ? yFields.slice(0, 1) : yFields;
+            series.forEach((field, index) => {
+                const data = pivotData.map(row => {
+                    const value = row[field];
+                    return isNaN(value) ? 0 : Number(value);
+                });
+                datasets.push({
+                    label: field,
+                    data: data,
+                    backgroundColor: getChartColor(index, 0.6),
+                    borderColor: getChartColor(index, 1),
+                    borderWidth: 2,
+                    fill: chartType === 'area'
+                });
+            });
+            
+            // 图表配置
+            const config = {
+                type: chartType === 'area' ? 'line' : chartType,
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: chartType !== 'pie' ? {
+                        y: {
+                            beginAtZero: true
+                        }
+                    } : {},
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '透视分析图表'
+                        },
+                        legend: {
+                            display: series.length > 1
+                        }
+                    }
+                }
+            };
+            
+            // 创建图表
+            currentChart = new Chart(ctx, config);
+        }
+
+        function setupChartAxes(pivotData) {
+            const axes = document.getElementById('chartAxes');
+            if (!axes) return;
+            if (!pivotData || pivotData.length === 0) { axes.style.display = 'none'; return; }
+            const headers = Object.keys(pivotData[0]);
+            const xSelect = document.getElementById('xAxisSelect');
+            
+            // 重建选项
+            xSelect.innerHTML = '';
+            headers.forEach(h => {
+                const optX = document.createElement('option');
+                optX.value = h; optX.textContent = h; xSelect.appendChild(optX);
+            });
+            
+            // 默认：第一列为X，其它数值列为Y
+            xSelect.value = headers[0];
+            const numericHeaders = detectNumericHeaders(pivotData);
+            const defaults = numericHeaders.filter(h => h !== xSelect.value);
+            const toSelect = new Set(defaults.length ? defaults : headers.slice(1, 2));
+            yAxisSelected = toSelect;
+            renderYAxisUI(headers);
+            
+            // 绑定变化
+            xSelect.onchange = () => { if (currentPivotData) createChart(currentPivotData, currentChartType); };
+            
+            axes.style.display = 'flex';
+        }
+
+        function renderYAxisUI(headers) {
+            const dropdown = document.getElementById('yAxisDropdown');
+            const chips = document.getElementById('yAxisChips');
+            if (!dropdown || !chips) return;
+            // 渲染下拉
+            dropdown.innerHTML = '';
+            headers.forEach(h => {
+                const row = document.createElement('div');
+                row.className = 'axis-option';
+                row.innerHTML = `<input type="checkbox" ${yAxisSelected.has(h) ? 'checked' : ''} /> <span>${h}</span>`;
+                row.onclick = (e) => {
+                    const cb = row.querySelector('input');
+                    cb.checked = !cb.checked;
+                    if (cb.checked) yAxisSelected.add(h); else yAxisSelected.delete(h);
+                    updateYAxisChips();
+                    if (currentPivotData) createChart(currentPivotData, currentChartType);
+                };
+                dropdown.appendChild(row);
+            });
+            // 渲染chips
+            updateYAxisChips();
+        }
+
+        function updateYAxisChips() {
+            const chips = document.getElementById('yAxisChips');
+            const dropdown = document.getElementById('yAxisDropdown');
+            if (!chips) return;
+            chips.innerHTML = '';
+            const values = Array.from(yAxisSelected);
+            if (values.length === 0) {
+                chips.innerHTML = '<span class="axis-placeholder">选择数值字段...</span>';
+                return;
+            }
+            values.forEach(v => {
+                const chip = document.createElement('span');
+                chip.className = 'axis-chip';
+                chip.innerHTML = `${v}<span class="remove" title="移除" onclick="event.stopPropagation(); removeYAxisValue('${v}')">×</span>`;
+                chips.appendChild(chip);
+            });
+            // 同步下拉复选
+            if (dropdown) {
+                Array.from(dropdown.querySelectorAll('div.axis-option')).forEach(row => {
+                    const name = row.querySelector('span').textContent;
+                    const cb = row.querySelector('input');
+                    cb.checked = yAxisSelected.has(name);
+                });
+            }
+        }
+
+        function removeYAxisValue(name) {
+            yAxisSelected.delete(name);
+            updateYAxisChips();
+            if (currentPivotData) createChart(currentPivotData, currentChartType);
+        }
+
+        function toggleYAxisDropdown(e) {
+            const dropdown = document.getElementById('yAxisDropdown');
+            if (!dropdown) return;
+            dropdown.classList.toggle('show');
+        }
+
+        // 点击外部关闭Y轴下拉
+        document.addEventListener('click', function(e){
+            const box = document.getElementById('yAxisBox');
+            const dd = document.getElementById('yAxisDropdown');
+            if (!box || !dd) return;
+            if (!box.contains(e.target) && !dd.contains(e.target)) {
+                dd.classList.remove('show');
+            }
+        });
+
+        function detectNumericHeaders(pivotData) {
+            if (!pivotData || pivotData.length === 0) return [];
+            const headers = Object.keys(pivotData[0]);
+            const maxSample = Math.min(pivotData.length, 200);
+            const numeric = [];
+            headers.forEach(h => {
+                let seen = 0, ok = 0;
+                for (let i = 0; i < maxSample; i++) {
+                    const v = pivotData[i][h];
+                    if (v === null || v === '' || typeof v === 'undefined') continue;
+                    seen++;
+                    const n = Number(v);
+                    if (!Number.isNaN(n) && Number.isFinite(n)) ok++;
+                }
+                if (seen > 0 && ok / seen >= 0.6) numeric.push(h);
+            });
+            return numeric;
+        }
+        
+        // 获取图表颜色
+        function getChartColor(index, alpha) {
+            const colors = [
+                `rgba(59, 130, 246, ${alpha})`,   // 蓝色
+                `rgba(16, 185, 129, ${alpha})`,   // 绿色
+                `rgba(245, 158, 11, ${alpha})`,   // 黄色
+                `rgba(239, 68, 68, ${alpha})`,    // 红色
+                `rgba(139, 92, 246, ${alpha})`,   // 紫色
+                `rgba(236, 72, 153, ${alpha})`,   // 粉色
+            ];
+            return colors[index % colors.length];
+        }
+        
+        // 切换图表类型
+        function changeChartType(chartType) {
+            // 更新按钮状态
+            document.querySelectorAll('.chart-type-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 重新生成图表
+            if (currentPivotData) {
+                currentChartType = chartType;
+                createChart(currentPivotData, chartType);
+            }
+        }
+        
+        // 切换标签页
+        function switchTab(tabName) {
+            // 更新标签按钮状态
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 切换标签内容
+            document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.remove('active');
+            });
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
+        
+        // 显示/隐藏加载状态
+        function showLoading() {
+            document.getElementById('pivotTableContainer').innerHTML = '<div class="loading"><div class="spinner"></div><div>正在生成透视表...</div></div>';
+        }
+        
+        function hideLoading() {
+            // 加载完成后会被结果替换
+        }
+        
+        // 显示/隐藏导出按钮
+        function showExportButtons() {
+            const a = document.getElementById('exportTableBtn');
+            const b = document.getElementById('exportChartBtn');
+            if (a) a.style.display = 'inline-block';
+            if (b) b.style.display = 'inline-block';
+        }
+        function hideExportButtons() {
+            const a = document.getElementById('exportTableBtn');
+            const b = document.getElementById('exportChartBtn');
+            if (a) a.style.display = 'none';
+            if (b) b.style.display = 'none';
+        }
+        
+        // 清空结果
+        function clearResults() {
+            document.getElementById('pivotTableContainer').innerHTML = '<div class="empty-state"><h3>暂无数据</h3><p>请配置透视表字段并生成分析结果</p></div>';
+            document.getElementById('chartContainer').innerHTML = '<div class="empty-state"><h3>暂无图表</h3><p>请先生成透视表数据后再查看图表</p></div>';
+            document.getElementById('chartTypeSelector').style.display = 'none';
+            document.getElementById('exportTableBtn').style.display = 'none';
+            document.getElementById('exportChartBtn').style.display = 'none';
+            
+            if (currentChart) {
+                currentChart.destroy();
+                currentChart = null;
+            }
+            currentPivotData = null;
+        }
+        
+        // 导出透视表
+        async function exportPivotTable() {
+            if (!currentPivotData) {
+                alert('没有数据可导出');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/export-pivot-table', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        pivot_data: currentPivotData
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = '透视分析表格.xlsx';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('导出失败');
+                }
+            } catch (error) {
+                console.error('导出错误:', error);
+                alert('导出时发生错误');
+            }
+        }
+        
+        // 导出图表
+        function exportChart() {
+            if (!currentChart) {
+                alert('没有图表可导出');
+                return;
+            }
+            
+            const url = currentChart.toBase64Image();
+            const a = document.createElement('a');
+            a.download = '透视分析图表.png';
+            a.href = url;
+            a.click();
+        }
+        
+        // 拖拽离开时移除样式
+        document.addEventListener('dragleave', function(e) {
+            if (e.target.classList && e.target.classList.contains('field-list')) {
+                e.target.classList.remove('drag-over', 'valid', 'invalid');
+            }
+        });
+        
+        // 键盘导航支持
+        document.addEventListener('keydown', function(e) {
+            const dropdown = document.getElementById('dataSourceDropdown');
+            if (!dropdown.classList.contains('show')) return;
+            
+            const options = document.querySelectorAll('.searchable-select-option:not(.hidden)');
+            const currentFocused = document.querySelector('.searchable-select-option.focused');
+            
+            if (e.key === 'Escape') {
+                const container = document.querySelector('.searchable-select-container');
+                dropdown.classList.remove('show');
+                container.classList.remove('open');
+                e.preventDefault();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                let nextIndex = 0;
+                if (currentFocused) {
+                    currentFocused.classList.remove('focused');
+                    nextIndex = Array.from(options).indexOf(currentFocused) + 1;
+                    if (nextIndex >= options.length) nextIndex = 0;
+                }
+                if (options[nextIndex]) {
+                    options[nextIndex].classList.add('focused');
+                    options[nextIndex].scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                let nextIndex = options.length - 1;
+                if (currentFocused) {
+                    currentFocused.classList.remove('focused');
+                    nextIndex = Array.from(options).indexOf(currentFocused) - 1;
+                    if (nextIndex < 0) nextIndex = options.length - 1;
+                }
+                if (options[nextIndex]) {
+                    options[nextIndex].classList.add('focused');
+                    options[nextIndex].scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentFocused) {
+                    currentFocused.click();
+                }
+            }
+        });
+        
+        // 点击外部关闭下拉菜单
+        document.addEventListener('click', function(e) {
+            const container = document.querySelector('.searchable-select-container');
+            const dropdown = document.getElementById('dataSourceDropdown');
+            
+            if (container && dropdown && !container.contains(e.target)) {
+                dropdown.classList.remove('show');
+                container.classList.remove('open');
+            }
+        });
+        
+        // 显示API配置模态框（与数据合并页行为保持一致，跳转到首页并打开配置）
+        function showAPIConfigModal() {
+            window.location.href = '/#api-config';
+        }
+    </script>
+</body>
+</html>

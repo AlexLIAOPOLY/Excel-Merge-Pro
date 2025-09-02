@@ -497,6 +497,17 @@
             }
         }
 
+        /* API配置按钮特殊样式 */
+        .config-btn {
+            background: none !important;
+            border: none;
+            cursor: pointer;
+            color: #6b7280 !important;
+            font-family: inherit;
+            font-size: 14px !important;
+            font-weight: 500;
+        }
+
         /* 主容器 */
         .main-container {
             max-width: 1600px;
@@ -1055,11 +1066,12 @@
             <div class="nav-menu">
                 <div class="nav-main">
                     <a href="/" class="nav-link">数据合并</a>
-                    <a href="#" class="nav-link">数据分析</a>
+                    <a href="/pivot-analysis" class="nav-link">透视分析</a>
                 </div>
                 <div class="nav-tools">
                     <a href="/workspace" class="nav-link active">工作台</a>
                     <a href="#" class="nav-link">使用帮助</a>
+                    <button class="nav-link config-btn" onclick="showAPIConfigModal()">API配置</button>
                 </div>
             </div>
         </div>
@@ -1709,6 +1721,11 @@
                 }
             }
         });
+
+        // 显示API配置模态框
+        function showAPIConfigModal() {
+            window.location.href = '/';
+        }
     </script>
 </body>
 </html>

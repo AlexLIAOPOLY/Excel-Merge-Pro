@@ -11,18 +11,20 @@ from datetime import datetime
 class DeepSeekAPIClient:
     """DeepSeek API客户端"""
     
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, base_url=None, model=None):
         """
         初始化DeepSeek API客户端
         Args:
             api_key (str): DeepSeek API密钥
+            base_url (str): API基础地址
+            model (str): 使用的模型名称
         """
         self.api_key = api_key or os.getenv('DEEPSEEK_API_KEY')
         if not self.api_key:
-            raise ValueError("DeepSeek API密钥未配置。请设置环境变量 DEEPSEEK_API_KEY 或在.env文件中配置。")
+            print("[DeepSeek API] 警告: API密钥未配置，某些功能可能不可用")
         
-        self.base_url = "https://api.deepseek.com/v1/chat/completions"
-        self.model = "deepseek-chat"  # 使用最便宜的deepseek-chat模型
+        self.base_url = base_url or "https://api.deepseek.com/v1/chat/completions"
+        self.model = model or "deepseek-chat"  # 使用最便宜的deepseek-chat模型
         
     def generate_table_name(self, column_names, sample_data=None, max_retries=3):
         """
@@ -108,6 +110,9 @@ class DeepSeekAPIClient:
     
     def _call_api(self, prompt):
         """调用DeepSeek API"""
+        if not self.api_key:
+            raise ValueError("API密钥未配置")
+        
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -127,17 +132,36 @@ class DeepSeekAPIClient:
         }
         
         print(f"[DeepSeek API] 发送请求到: {self.base_url}")
-        response = requests.post(self.base_url, headers=headers, json=payload, timeout=30)
+        print(f"[DeepSeek API] 使用模型: {self.model}")
         
-        if response.status_code == 200:
-            result = response.json()
-            if 'choices' in result and len(result['choices']) > 0:
-                content = result['choices'][0]['message']['content']
-                print(f"[DeepSeek API] API响应成功: {content}")
-                return content.strip()
-        else:
-            print(f"[DeepSeek API] API请求失败: {response.status_code} - {response.text}")
-            return None
+        try:
+            response = requests.post(self.base_url, headers=headers, json=payload, timeout=30)
+            
+            print(f"[DeepSeek API] 响应状态码: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'choices' in result and len(result['choices']) > 0:
+                    content = result['choices'][0]['message']['content']
+                    print(f"[DeepSeek API] API响应成功: {content}")
+                    return content.strip()
+                else:
+                    print(f"[DeepSeek API] 响应格式异常: {result}")
+                    return None
+            else:
+                error_text = response.text[:200] if response.text else "无错误信息"
+                print(f"[DeepSeek API] API请求失败: {response.status_code} - {error_text}")
+                raise requests.RequestException(f"HTTP {response.status_code}: {error_text}")
+                
+        except requests.exceptions.Timeout:
+            print("[DeepSeek API] 请求超时")
+            raise requests.RequestException("请求超时，请检查网络连接")
+        except requests.exceptions.ConnectionError:
+            print("[DeepSeek API] 连接错误")
+            raise requests.RequestException("连接失败，请检查网络或API地址")
+        except requests.exceptions.RequestException as e:
+            print(f"[DeepSeek API] 请求异常: {str(e)}")
+            raise e
     
     def _extract_table_name(self, response):
         """从API响应中提取表格名称"""
@@ -204,18 +228,30 @@ class DeepSeekAPIClient:
     def test_connection(self):
         """测试API连接"""
         try:
-            test_prompt = "请说'连接测试成功'"
+            # 检查基本配置
+            if not self.api_key:
+                return False, "API密钥未配置"
+            
+            if not self.base_url:
+                return False, "API地址未配置"
+            
+            print(f"[DeepSeek API] 测试连接到: {self.base_url}")
+            print(f"[DeepSeek API] 使用模型: {self.model}")
+            
+            test_prompt = "请回复'连接测试成功'"
             response = self._call_api(test_prompt)
             
-            if response and "成功" in response:
-                return True, "API连接正常"
+            if response and ("成功" in response or "连接" in response or len(response.strip()) > 0):
+                return True, f"API连接正常，响应: {response[:50]}..."
             elif response:
-                return True, f"API连接正常，响应: {response}"
+                return True, f"API连接正常，收到响应: {response[:30]}..."
             else:
-                return False, "API无响应"
+                return False, "API无响应或响应为空"
                 
         except Exception as e:
-            return False, f"连接测试失败: {str(e)}"
+            error_msg = str(e)
+            print(f"[DeepSeek API] 连接测试异常: {error_msg}")
+            return False, f"连接测试失败: {error_msg}"
 
 
 def generate_smart_table_name(column_names, sample_data=None, api_key=None):

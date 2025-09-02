@@ -10,6 +10,9 @@ let isGlobalSearchActive = false;
 let currentGlobalSearchTerm = '';
 let currentStats = null;
 
+// 新上传文件跟踪变量
+let newUploadedFiles = new Set();
+
 
 // 控制台日志函数 - 修复：处理控制台元素不存在的情况
 function addConsoleLog(message, type = 'system') {
@@ -174,6 +177,30 @@ function initializeEventListeners() {
     const fileList = document.getElementById('fileList');
     const searchInput = document.getElementById('searchInput');
     
+    // 调试：检查元素是否存在
+    if (!uploadArea) {
+        console.error('uploadArea元素未找到');
+        return;
+    }
+    console.log('uploadArea元素找到，开始添加拖拽事件监听器');
+    
+    // 添加点击触发文件选择事件
+    uploadArea.addEventListener('click', function(e) {
+        // 避免按钮点击时触发
+        if (!e.target.classList.contains('upload-action-btn')) {
+            console.log('uploadArea被点击了，触发文件选择');
+            addConsoleLog('上传区域被点击，打开文件选择', 'system');
+            document.getElementById('fileInput').click();
+        }
+    });
+    
+    // 添加更多拖拽相关的事件监听器用于调试
+    uploadArea.addEventListener('dragenter', function(e) {
+        console.log('dragenter事件触发');
+        addConsoleLog('文件进入拖拽区域', 'system');
+        e.preventDefault();
+    });
+    
     // 文件选择事件 - 选择后自动上传
     fileInput.addEventListener('change', function() {
         const files = Array.from(this.files);
@@ -221,6 +248,8 @@ function initializeEventListeners() {
     
     // 增强的拖拽上传功能
     uploadArea.addEventListener('dragover', function(e) {
+        console.log('dragover事件触发');
+        addConsoleLog('检测到文件拖拽', 'system');
         e.preventDefault();
         e.stopPropagation();
         this.classList.add('dragover');
@@ -253,6 +282,8 @@ function initializeEventListeners() {
     });
     
     uploadArea.addEventListener('drop', function(e) {
+        console.log('drop事件触发');
+        addConsoleLog('文件被释放，开始处理', 'system');
         e.preventDefault();
         e.stopPropagation();
         this.classList.remove('dragover');
@@ -333,7 +364,8 @@ async function uploadFiles() {
         formData.append('files[]', files[i]);
     }
     
-    // 显示上传状态
+    // 显示进度条并开始动画
+    const progressController = animateUploadProgress(4000);
     addConsoleLog('文件上传中...', 'system');
     
     try {
@@ -342,23 +374,34 @@ async function uploadFiles() {
             body: formData
         });
         
+        // 完成上传，清理定时器并更新到100%
+        progressController.clearAll();
+        hideVPNTip(); // 隐藏VPN提示
+        updateUploadProgress(100, '上传完成！');
+        
         const result = await response.json();
         displayUploadResults(result.results);
         
-        // 刷新表格列表和数据
-        await Promise.all([
-            loadTableList(),
-            loadTablesList()  // 刷新文件管理列表
-        ]);
+        // 只刷新左侧的表格列表，右侧文件管理列表已在每个文件成功时实时刷新
+        await loadTableList();
         
         // 清空文件选择
         fileInput.value = '';
         document.getElementById('fileList').style.display = 'none';
         
     } catch (error) {
+        // 上传失败，检查是否需要显示VPN提示
+        progressController.incrementFailure(error, error.message);
+        progressController.clearAll();
+        hideVPNTip(); // 隐藏VPN提示
+        hideUploadProgress();
         addConsoleLog(`上传失败: ${error.message}`, 'error');
     } finally {
         addConsoleLog('文件上传完成', 'system');
+        // 延迟隐藏进度条
+        setTimeout(() => {
+            hideUploadProgress();
+        }, 800);
     }
 }
 
@@ -376,7 +419,8 @@ async function uploadDraggedFiles(files) {
         formData.append('files[]', files[i]);
     }
     
-    // 显示上传状态
+    // 显示进度条并开始动画
+    const progressController = animateUploadProgress(4000);
     addConsoleLog('文件上传中...', 'system');
     
     try {
@@ -385,20 +429,31 @@ async function uploadDraggedFiles(files) {
             body: formData
         });
         
+        // 完成上传，清理定时器并更新到100%
+        progressController.clearAll();
+        hideVPNTip(); // 隐藏VPN提示
+        updateUploadProgress(100, '上传完成！');
+        
         const result = await response.json();
         displayUploadResults(result.results);
         
-        // 刷新表格列表和数据
-        await Promise.all([
-            loadTableList(),
-            loadTablesList()  // 刷新文件管理列表
-        ]);
+        // 只刷新左侧的表格列表，右侧文件管理列表已在每个文件成功时实时刷新
+        await loadTableList();
         
     } catch (error) {
+        // 拖拽上传失败，检查是否需要显示VPN提示
+        progressController.incrementFailure(error, error.message);
+        progressController.clearAll();
+        hideVPNTip(); // 隐藏VPN提示
+        hideUploadProgress();
         addConsoleLog(`拖拽上传失败: ${error.message}`, 'error');
         showNotification('上传失败', error.message, 'error');
     } finally {
         addConsoleLog('拖拽文件上传完成', 'system');
+        // 延迟隐藏进度条
+        setTimeout(() => {
+            hideUploadProgress();
+        }, 800);
     }
 }
 
@@ -418,6 +473,17 @@ function displayUploadResults(results) {
                 totalSuccess++;
                 totalRecords += result.count;
                 addConsoleLog(`${result.filename} 处理成功，导入 ${result.count} 条记录`, 'system');
+                
+                // 记录新上传的文件
+                newUploadedFiles.add(result.filename);
+                
+                // 立即刷新文件管理列表，让用户看到新上传的文件
+                loadTablesList().then(() => {
+                    // 刷新完成后等待一下让动画效果显示
+                    console.log(`文件 ${result.filename} 已添加到文件管理列表`);
+                }).catch(error => {
+                    console.error('刷新文件列表失败:', error);
+                });
                 
                 // 记录最新的分组ID
                 if (result.group_id) {
@@ -689,11 +755,34 @@ async function importSelectedFiles() {
     // 关闭模态框
     closeWorkspaceModal();
 
+    // 显示进度条
+    showUploadProgress();
+    hideVPNTip(); // 确保开始时隐藏VPN提示
+    updateUploadProgress(0, `准备导入 ${selectedFiles.length} 个文件...`);
+
+    // API失败计数和VPN提示逻辑
+    let apiFailureCount = 0;
+    let vpnTipShown = false;
+    
+    // 长时间等待后检查是否需要显示VPN提示
+    let vpnTipTimer = setTimeout(() => {
+        if (!vpnTipShown && apiFailureCount >= 3) {
+            showVPNTip();
+            vpnTipShown = true;
+        }
+    }, 15000); // 15秒后检查是否需要显示VPN提示
+
     // 导入文件
     addConsoleLog(`开始从工作台导入 ${selectedFiles.length} 个文件...`, 'system');
     
-    for (const file of selectedFiles) {
+    for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const progress = ((i + 1) / selectedFiles.length) * 100;
+        
         try {
+            // 确保进度不会为负数
+            const displayProgress = Math.max(5, Math.min(95, progress * 0.8));
+            updateUploadProgress(displayProgress, `正在导入: ${file.name}`);
             addConsoleLog(`正在导入: ${file.name}`, 'info');
             
             const response = await fetch('/api/workspace/files/import', {
@@ -710,13 +799,42 @@ async function importSelectedFiles() {
             const result = await response.json();
             
             if (result.success) {
+                // 确保最终进度显示合理
+                const finalProgress = Math.max(10, Math.min(95, progress * 0.85));
+                updateUploadProgress(finalProgress, `${file.name} 导入成功`);
                 addConsoleLog(`${file.name} 导入成功，共 ${result.count || 0} 条记录`, 'success');
                 showNotification('导入成功', `${file.name} 已成功导入`, 'success');
+                
+                // 记录新导入的文件
+                newUploadedFiles.add(file.name);
+                
+                // 立即刷新文件管理列表，让用户看到新导入的文件
+                loadTablesList().then(() => {
+                    console.log(`文件 ${file.name} 已添加到文件管理列表`);
+                }).catch(error => {
+                    console.error('刷新文件列表失败:', error);
+                });
             } else {
+                // API调用失败，检查是否是网络相关错误
+                if (isNetworkError(null, result.message)) {
+                    apiFailureCount++;
+                    if (apiFailureCount >= 3 && !vpnTipShown) {
+                        showVPNTip();
+                        vpnTipShown = true;
+                    }
+                }
                 addConsoleLog(`${file.name} 导入失败: ${result.message}`, 'error');
                 showNotification('导入失败', `${file.name}: ${result.message}`, 'error');
             }
         } catch (error) {
+            // 检查是否是网络错误
+            if (isNetworkError(error, error.message)) {
+                apiFailureCount++;
+                if (apiFailureCount >= 3 && !vpnTipShown) {
+                    showVPNTip();
+                    vpnTipShown = true;
+                }
+            }
             console.error('导入文件失败:', error);
             addConsoleLog(`${file.name} 导入失败: 网络错误`, 'error');
             showNotification('导入失败', `${file.name}: 网络错误`, 'error');
@@ -725,6 +843,11 @@ async function importSelectedFiles() {
         // 每个文件之间添加短暂延迟
         await new Promise(resolve => setTimeout(resolve, 300));
     }
+
+    // 完成导入，清理定时器
+    clearTimeout(vpnTipTimer);
+    hideVPNTip(); // 隐藏VPN提示
+    updateUploadProgress(100, '导入完成！');
 
     // 导入完成后刷新表格组列表并自动收起上传框
     setTimeout(() => {
@@ -741,6 +864,9 @@ async function importSelectedFiles() {
         
         addConsoleLog('工作台文件导入完成，正在刷新数据...', 'system');
         showNotification('导入完成', '文件上传区域已自动收起', 'success');
+        
+        // 隐藏进度条
+        hideUploadProgress();
     }, 500);
 }
 
@@ -3280,12 +3406,19 @@ function renderFilesList() {
         const uploadTime = file.upload_time ? new Date(file.upload_time).toLocaleDateString() : '--';
         const hasData = file.has_data;
         
+        // 检查是否是新上传的文件
+        const isNewFile = newUploadedFiles.has(file.filename);
+        let itemClass = 'table-item';
+        if (isNewFile) {
+            itemClass += ' new-file';
+        }
+        
         // 如果没有数据了，显示不同的样式
         const itemStyle = hasData ? '' : 'opacity: 0.6; border-color: #f87171;';
         const statusText = hasData ? '' : ' (数据已删除)';
         
         return `
-            <div class="table-item" data-filename="${file.filename}" style="${itemStyle}">
+            <div class="${itemClass}" data-filename="${file.filename}" style="${itemStyle}">
                 <div class="table-item-header">
                     <div class="table-item-title" onclick="viewFile('${file.filename}')" title="点击查看文件内容">
                         ${displayName}${statusText}
@@ -3318,6 +3451,31 @@ function renderFilesList() {
     }).join('');
     
     tablesList.innerHTML = filesHtml;
+    
+    // 处理新文件动画
+    if (newUploadedFiles.size > 0) {
+        // 延迟一帧以确保DOM已更新，然后添加高亮动画
+        setTimeout(() => {
+            const filesToProcess = Array.from(newUploadedFiles);
+            filesToProcess.forEach(filename => {
+                const fileElement = document.querySelector(`.table-item[data-filename="${filename}"]`);
+                if (fileElement) {
+                    // 动画完成后移除new-file类，添加高亮效果
+                    setTimeout(() => {
+                        fileElement.classList.remove('new-file');
+                        fileElement.classList.add('new-file-highlight');
+                        
+                        // 高亮动画完成后清理
+                        setTimeout(() => {
+                            fileElement.classList.remove('new-file-highlight');
+                            // 从新文件记录中移除这个文件
+                            newUploadedFiles.delete(filename);
+                        }, 2000);
+                    }, 600);
+                }
+            });
+        }, 16);
+    }
 }
 
 
@@ -3488,15 +3646,9 @@ async function refreshTablesList() {
     await loadTablesList();
 }
 
-// 修改页面初始化，添加表格管理初始化
+// 修改页面初始化，添加表格管理初始化  
 document.addEventListener('DOMContentLoaded', function() {
     addConsoleLog('DataMerge Pro 系统初始化完成', 'system');
-    
-    initializeEventListeners();
-    initializeNavbar();
-    initializeUploadArea(); // 初始化上传区域功能
-    enhanceSearchInput(); // 初始化搜索输入框增强功能
-    loadTableList();
     
     // 延迟加载表格列表，确保DOM元素已完全加载
     setTimeout(() => {
@@ -3587,3 +3739,571 @@ function autoCollapseUploadArea() {
         showNotification('上传完成', '上传区域已自动收起，为表格预留更多空间', 'info');
     }, 2000); // 上传完成2秒后自动折叠
 }
+
+// 进度条控制函数
+function showUploadProgress() {
+    const progressContainer = document.getElementById('uploadProgress');
+    const progressText = document.getElementById('uploadProgressText');
+    const progressPercent = document.getElementById('uploadProgressPercent');
+    const progressFill = document.getElementById('uploadProgressFill');
+    const uploadTip = document.getElementById('uploadTip');
+    
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        progressText.textContent = '正在上传文件...';
+        progressPercent.textContent = '0%';
+        progressFill.style.width = '0%';
+        if (uploadTip) {
+            uploadTip.style.display = 'none';
+        }
+    }
+}
+
+function updateUploadProgress(percent, text = null) {
+    const progressText = document.getElementById('uploadProgressText');
+    const progressPercent = document.getElementById('uploadProgressPercent');
+    const progressFill = document.getElementById('uploadProgressFill');
+    
+    if (progressPercent && progressFill) {
+        // 确保百分比在0-100之间
+        const safePercent = Math.max(0, Math.min(100, percent));
+        progressPercent.textContent = Math.round(safePercent) + '%';
+        progressFill.style.width = safePercent + '%';
+    }
+    
+    if (text && progressText) {
+        progressText.textContent = text;
+    }
+}
+
+function hideUploadProgress() {
+    const progressContainer = document.getElementById('uploadProgress');
+    
+    if (progressContainer) {
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+        }, 1000); // 延迟隐藏，让用户看到完成状态
+    }
+}
+
+// 判断是否是网络连接相关的错误
+function isNetworkError(error, errorMessage) {
+    // 检查JavaScript的网络错误类型
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+        return true;
+    }
+    
+    // 检查常见的网络相关错误消息
+    const networkErrorPatterns = [
+        'network',
+        'connection',
+        'timeout',
+        'fetch',
+        'deepseek',
+        'api',
+        '网络',
+        '连接',
+        '超时',
+        '请求失败',
+        'Failed to fetch',
+        'NetworkError',
+        'ERR_NETWORK',
+        'ERR_INTERNET_DISCONNECTED'
+    ];
+    
+    const message = (errorMessage || error?.message || '').toLowerCase();
+    return networkErrorPatterns.some(pattern => 
+        message.includes(pattern.toLowerCase())
+    );
+}
+
+// 显示VPN提示
+function showVPNTip() {
+    const uploadTip = document.getElementById('uploadTip');
+    if (uploadTip) {
+        uploadTip.style.display = 'block';
+    }
+}
+
+// 隐藏VPN提示
+function hideVPNTip() {
+    const uploadTip = document.getElementById('uploadTip');
+    if (uploadTip) {
+        uploadTip.style.display = 'none';
+    }
+}
+
+// 模拟进度条动画（用于没有真实进度的API请求）
+function animateUploadProgress(duration = 3000) {
+    showUploadProgress();
+    hideVPNTip(); // 确保开始时隐藏VPN提示
+    
+    let progress = 0;
+    const increment = 100 / (duration / 50); // 每50ms增加的百分比
+    let vpnTipShown = false;
+    let apiFailureCount = 0;
+    
+    // 长时间等待或多次API失败后显示VPN提示
+    const vpnTipTimer = setTimeout(() => {
+        if (!vpnTipShown && apiFailureCount >= 3) {
+            showVPNTip();
+            vpnTipShown = true;
+        }
+    }, 15000); // 15秒后检查是否需要显示VPN提示
+    
+    const interval = setInterval(() => {
+        progress += increment;
+        
+        if (progress >= 95) {
+            // 在95%停止，等待实际请求完成
+            clearInterval(interval);
+            updateUploadProgress(95, '正在处理数据...');
+        } else {
+            let text = '正在上传文件...';
+            if (progress > 30) text = '正在解析表格...';
+            if (progress > 60) text = '正在处理数据...';
+            
+            updateUploadProgress(progress, text);
+        }
+    }, 50);
+    
+    // 返回对象包含interval和timer，便于清理
+    const controller = {
+        interval: interval,
+        vpnTipTimer: vpnTipTimer,
+        apiFailureCount: 0,
+        incrementFailure: function(error, errorMessage) {
+            // 只有在网络错误时才增加失败计数
+            if (isNetworkError(error, errorMessage)) {
+                this.apiFailureCount++;
+                // 如果失败次数达到3次，立即显示VPN提示
+                if (this.apiFailureCount >= 3 && !vpnTipShown) {
+                    showVPNTip();
+                    vpnTipShown = true;
+                }
+            }
+        },
+        clearAll: function() {
+            clearInterval(this.interval);
+            clearTimeout(this.vpnTipTimer);
+        }
+    };
+    
+    return controller;
+}
+
+// ========================= API配置管理 =========================
+
+// API配置预设
+const API_PRESETS = {
+    deepseek: {
+        url: 'https://api.deepseek.com',
+        model: 'deepseek-chat',
+        name: 'DeepSeek',
+        models: [
+            { value: 'deepseek-chat', label: 'deepseek-chat (通用对话模型)' },
+            { value: 'deepseek-coder', label: 'deepseek-coder (代码专用模型)' },
+            { value: 'deepseek-reasoner', label: 'deepseek-reasoner (推理增强模型)' }
+        ]
+    },
+    openai: {
+        url: 'https://api.openai.com/v1',
+        model: 'gpt-3.5-turbo',
+        name: 'OpenAI',
+        models: [
+            { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (快速响应)' },
+            { value: 'gpt-4', label: 'GPT-4 (高质量推理)' },
+            { value: 'gpt-4-turbo', label: 'GPT-4 Turbo (性能平衡)' },
+            { value: 'gpt-4o', label: 'GPT-4o (多模态)' }
+        ]
+    },
+    anthropic: {
+        url: 'https://api.anthropic.com/v1',
+        model: 'claude-3-haiku-20240307',
+        name: 'Anthropic',
+        models: [
+            { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku (快速)' },
+            { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet (平衡)' },
+            { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus (顶级)' }
+        ]
+    },
+    gemini: {
+        url: 'https://generativelanguage.googleapis.com/v1beta',
+        model: 'gemini-pro',
+        name: 'Google Gemini',
+        models: [
+            { value: 'gemini-pro', label: 'Gemini Pro (通用)' },
+            { value: 'gemini-pro-vision', label: 'Gemini Pro Vision (视觉)' },
+            { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (最新)' }
+        ]
+    },
+    zhipu: {
+        url: 'https://open.bigmodel.cn/api/paas/v4',
+        model: 'glm-4',
+        name: '智谱AI',
+        models: [
+            { value: 'glm-4', label: 'GLM-4 (通用模型)' },
+            { value: 'glm-4v', label: 'GLM-4V (视觉理解)' },
+            { value: 'glm-3-turbo', label: 'GLM-3 Turbo (快速)' }
+        ]
+    },
+    hunyuan: {
+        url: 'https://api.hunyuan.cloud.tencent.com/v1',
+        model: 'hunyuan-pro',
+        name: '腾讯混元',
+        models: [
+            { value: 'hunyuan-pro', label: '混元-Pro (高性能)' },
+            { value: 'hunyuan-standard', label: '混元-Standard (标准)' },
+            { value: 'hunyuan-lite', label: '混元-Lite (轻量)' }
+        ]
+    },
+    qwen: {
+        url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        model: 'qwen-max',
+        name: '阿里通义千问',
+        models: [
+            { value: 'qwen-max', label: '通义千问-Max (最强能力)' },
+            { value: 'qwen-plus', label: '通义千问-Plus (平衡)' },
+            { value: 'qwen-turbo', label: '通义千问-Turbo (快速)' }
+        ]
+    },
+    doubao: {
+        url: 'https://ark.cn-beijing.volces.com/api/v3',
+        model: 'doubao-pro-4k',
+        name: '字节豆包',
+        models: [
+            { value: 'doubao-pro-4k', label: '豆包-Pro-4K (高性能)' },
+            { value: 'doubao-lite-4k', label: '豆包-Lite-4K (轻量)' },
+            { value: 'doubao-pro-32k', label: '豆包-Pro-32K (长文本)' }
+        ]
+    },
+    moonshot: {
+        url: 'https://api.moonshot.cn/v1',
+        model: 'moonshot-v1-8k',
+        name: '月之暗面',
+        models: [
+            { value: 'moonshot-v1-8k', label: 'Moonshot v1 8K (8K上下文)' },
+            { value: 'moonshot-v1-32k', label: 'Moonshot v1 32K (32K上下文)' },
+            { value: 'moonshot-v1-128k', label: 'Moonshot v1 128K (128K上下文)' }
+        ]
+    },
+
+    custom: {
+        url: '',
+        model: '',
+        name: '自定义',
+        models: [
+            { value: '', label: '请手动输入模型名称' }
+        ]
+    }
+};
+
+// 显示API配置模态框
+function showAPIConfigModal() {
+    const modal = document.getElementById('apiConfigModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        loadAPIConfig();
+    }
+}
+
+// 隐藏API配置模态框
+function hideAPIConfigModal() {
+    const modal = document.getElementById('apiConfigModal');
+    if (modal) {
+        modal.style.display = 'none';
+        // 清空测试结果
+        const testResult = document.getElementById('apiTestResult');
+        if (testResult) {
+            testResult.style.display = 'none';
+        }
+    }
+}
+
+// 加载当前API配置
+function loadAPIConfig() {
+    try {
+        const savedConfig = localStorage.getItem('apiConfig');
+        if (savedConfig) {
+            const config = JSON.parse(savedConfig);
+            
+            // 先设置提供商，这会触发模型选项的更新
+            document.getElementById('apiProvider').value = config.provider || 'deepseek';
+            
+            // 更新提供商配置（包括模型选项）
+            updateAPIProviderConfig();
+            
+            // 然后设置其他配置
+            document.getElementById('apiUrl').value = config.url || 'https://api.deepseek.com';
+            document.getElementById('apiKey').value = config.key || '';
+            
+            // 最后设置模型（确保模型选项已经加载）
+            setTimeout(() => {
+                const modelElement = document.getElementById('apiModel');
+                if (modelElement) {
+                    modelElement.value = config.model || 'deepseek-chat';
+                    
+                    // 如果是自定义配置且模型不在预设列表中，切换到文本输入模式
+                    if (config.provider === 'custom') {
+                        const preset = API_PRESETS[config.provider];
+                        const hasPresetModel = preset && preset.models && 
+                                              preset.models.some(m => m.value === config.model);
+                        
+                        if (!hasPresetModel && config.model) {
+                            // 模型不在预设中，切换到文本输入模式
+                            updateCustomModelInput();
+                            // 重新设置值
+                            setTimeout(() => {
+                                const newModelElement = document.getElementById('apiModel');
+                                if (newModelElement) {
+                                    newModelElement.value = config.model;
+                                }
+                            }, 10);
+                        }
+                    }
+                }
+            }, 50); // 短暂延迟确保DOM更新完成
+            
+        } else {
+            // 使用默认配置
+            updateAPIProviderConfig();
+        }
+    } catch (error) {
+        console.error('加载API配置失败:', error);
+        updateAPIProviderConfig();
+    }
+}
+
+// 更新API提供商配置
+function updateAPIProviderConfig() {
+    const provider = document.getElementById('apiProvider').value;
+    const preset = API_PRESETS[provider];
+    const modelSelect = document.getElementById('apiModel');
+    
+    if (preset) {
+        // 更新API地址
+        document.getElementById('apiUrl').value = preset.url;
+        
+        // 清空现有模型选项
+        modelSelect.innerHTML = '';
+        
+        // 动态添加模型选项
+        if (preset.models && preset.models.length > 0) {
+            preset.models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.value;
+                option.textContent = model.label;
+                modelSelect.appendChild(option);
+            });
+            
+            // 设置默认选择的模型
+            modelSelect.value = preset.model;
+        } else {
+            // 如果没有预设模型，创建一个默认选项
+            const option = document.createElement('option');
+            option.value = preset.model;
+            option.textContent = preset.model || '默认模型';
+            modelSelect.appendChild(option);
+            modelSelect.value = preset.model;
+        }
+        
+        // 如果是自定义配置，允许手动输入
+        if (provider === 'custom') {
+            // 为自定义配置添加手动输入功能
+            updateCustomModelInput();
+        }
+    }
+    
+    // 清空测试结果
+    const testResult = document.getElementById('apiTestResult');
+    if (testResult) {
+        testResult.style.display = 'none';
+        testResult.className = 'api-test-result';
+        testResult.textContent = '';
+    }
+}
+
+// 处理自定义模型输入
+function updateCustomModelInput() {
+    const modelElement = document.getElementById('apiModel');
+    const provider = document.getElementById('apiProvider').value;
+    
+    if (provider === 'custom') {
+        // 如果当前不是input，创建input
+        if (modelElement && modelElement.tagName !== 'INPUT') {
+            const currentValue = modelElement.value;
+            const parent = modelElement.parentNode;
+            
+            // 创建输入框
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = 'apiModel';
+            input.className = 'form-input';
+            input.placeholder = '请输入模型名称，如：gpt-3.5-turbo';
+            input.value = currentValue;
+            
+            // 替换select为input
+            parent.replaceChild(input, modelElement);
+        }
+    } else {
+        // 如果当前是input，切换回select
+        if (modelElement && modelElement.tagName === 'INPUT') {
+            const currentValue = modelElement.value;
+            const parent = modelElement.parentNode;
+            
+            // 重新创建select
+            const select = document.createElement('select');
+            select.id = 'apiModel';
+            select.className = 'form-select';
+            
+            // 替换input为select
+            parent.replaceChild(select, modelElement);
+            
+            // 重新填充选项，但不递归调用updateAPIProviderConfig()
+            const preset = API_PRESETS[provider];
+            if (preset && preset.models) {
+                preset.models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.value;
+                    option.textContent = model.label;
+                    select.appendChild(option);
+                });
+                
+                // 尝试恢复之前的值，如果不存在则用默认值
+                const targetValue = currentValue && 
+                                   preset.models.some(m => m.value === currentValue) ? 
+                                   currentValue : preset.model;
+                select.value = targetValue;
+            }
+        }
+    }
+}
+
+// 切换API Key可见性
+function toggleAPIKeyVisibility() {
+    const apiKeyInput = document.getElementById('apiKey');
+    const toggleBtn = document.querySelector('.toggle-visibility');
+    
+    if (apiKeyInput.type === 'password') {
+        apiKeyInput.type = 'text';
+        toggleBtn.textContent = '🙈';
+    } else {
+        apiKeyInput.type = 'password';
+        toggleBtn.textContent = '👁️';
+    }
+}
+
+// 测试API连接
+async function testAPIConnection() {
+    const testResult = document.getElementById('apiTestResult');
+    const provider = document.getElementById('apiProvider').value;
+    const url = document.getElementById('apiUrl').value;
+    const key = document.getElementById('apiKey').value;
+    const model = document.getElementById('apiModel').value;
+    
+    // 调试输出
+    console.log('testResult element:', testResult);
+    console.log('API config:', { provider, url: url ? 'set' : 'empty', key: key ? 'set' : 'empty', model });
+    
+    if (!url || !key) {
+        testResult.className = 'api-test-result error';
+        testResult.textContent = '请输入API地址和API Key';
+        testResult.style.display = 'block'; // 强制显示
+        return;
+    }
+    
+    testResult.className = 'api-test-result loading';
+    testResult.textContent = '正在测试连接...';
+    testResult.style.display = 'block'; // 强制显示
+    
+    try {
+        // 发送测试请求到后端
+        const response = await fetch('/test-api-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                provider: provider,
+                url: url,
+                key: key,
+                model: model
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            testResult.className = 'api-test-result success';
+            testResult.textContent = '连接成功，API配置正常';
+            testResult.style.display = 'block'; // 强制显示
+        } else {
+            testResult.className = 'api-test-result error';
+            testResult.textContent = '连接失败：' + (result.error || '未知错误');
+            testResult.style.display = 'block'; // 强制显示
+        }
+    } catch (error) {
+        testResult.className = 'api-test-result error';
+        testResult.textContent = '测试失败：' + error.message;
+        testResult.style.display = 'block'; // 强制显示
+    }
+}
+
+// 保存API配置
+function saveAPIConfig() {
+    const provider = document.getElementById('apiProvider').value;
+    const url = document.getElementById('apiUrl').value;
+    const key = document.getElementById('apiKey').value;
+    const model = document.getElementById('apiModel').value;
+    
+    if (!url || !key || !model) {
+        showNotification('配置不完整', '请填写完整的API配置信息', 'error');
+        return;
+    }
+    
+    const config = {
+        provider: provider,
+        url: url,
+        key: key,
+        model: model,
+        updated: new Date().toISOString()
+    };
+    
+    try {
+        localStorage.setItem('apiConfig', JSON.stringify(config));
+        showNotification('配置保存成功', 'API配置已保存到本地', 'success');
+        hideAPIConfigModal();
+        addConsoleLog(`API配置已更新: ${API_PRESETS[provider]?.name || provider}`, 'system');
+    } catch (error) {
+        showNotification('保存失败', '配置保存失败：' + error.message, 'error');
+    }
+}
+
+// 关闭移动端菜单
+function closeNavMenu() {
+    const navMenuMobile = document.getElementById('navMenuMobile');
+    const navToggle = document.getElementById('navToggle');
+    if (navMenuMobile) {
+        navMenuMobile.classList.remove('active');
+    }
+    if (navToggle) {
+        navToggle.classList.remove('active');
+    }
+}
+
+// 初始化API配置 - 页面加载时执行
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否有保存的API配置，如果没有则设置默认配置
+    const savedConfig = localStorage.getItem('apiConfig');
+    if (!savedConfig) {
+        const defaultConfig = {
+            provider: 'deepseek',
+            url: 'https://api.deepseek.com',
+            key: '', // 需要用户自行设置
+            model: 'deepseek-chat',
+            updated: new Date().toISOString()
+        };
+        localStorage.setItem('apiConfig', JSON.stringify(defaultConfig));
+        console.log('已设置默认API配置：DeepSeek');
+    }
+});
