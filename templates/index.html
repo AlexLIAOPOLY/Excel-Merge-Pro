@@ -2701,6 +2701,34 @@
         .table-action-btn-upload:hover {
             background: #374151;
         }
+
+        /* AI重命名加载样式 */
+        .ai-loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #6b7280;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .ai-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e2e8f0;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: ai-spin 1s linear infinite;
+        }
+
+        @keyframes ai-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -2842,27 +2870,28 @@
             <!-- 侧边栏 -->
             <div class="sidebar">
                 <!-- 文件管理 -->
-                <div class="card">
+                <div class="card" style="display: flex; flex-direction: column;">
                     <div class="card-header">
                         <h3 class="card-title">文件管理</h3>
                     </div>
-                    <div class="card-body">
-                        <div id="tableManagerContainer">
+                    <div class="card-body" style="display: flex; flex-direction: column; flex: 1;">
+                        <div id="tableManagerContainer" style="display: flex; flex-direction: column; flex: 1;">
                             <div id="loadingTables" class="loading" style="display: none; padding: 20px;">
                                 <div class="spinner"></div>
                                 <div style="font-size: 12px;">正在加载...</div>
                             </div>
-                            <div id="noTablesMessage" style="text-align: center; color: #9ca3af; padding: 20px; font-size: 14px;">
+                            <div id="noTablesMessage" style="text-align: center; color: #9ca3af; padding: 20px; font-size: 14px; flex: 1; display: flex; align-items: center; justify-content: center;">
                                 暂无上传文件
                             </div>
-                            <div id="tablesListContainer" style="display: none;">
-                                <div id="tablesScrollContainer" class="tables-scroll-container">
+                            <div id="tablesListContainer" style="display: none; flex: 1; overflow: hidden;">
+                                <div id="tablesScrollContainer" class="tables-scroll-container" style="height: 100%;">
                                     <div id="tablesList"></div>
                                 </div>
-                                <div style="margin-top: 12px; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 8px;">
-                                    <button class="btn btn-secondary" onclick="refreshTablesList()" style="font-size: 12px; padding: 6px 12px;">刷新列表</button>
-                                </div>
                             </div>
+                        </div>
+                        <!-- 刷新按钮始终固定在底部 -->
+                        <div style="margin-top: auto; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 8px; flex-shrink: 0;">
+                            <button class="btn btn-secondary" onclick="refreshTablesList()" style="font-size: 12px; padding: 6px 12px;">刷新列表</button>
                         </div>
                     </div>
                 </div>
@@ -2907,7 +2936,16 @@
             </div>
             <div class="form-group">
                 <label class="form-label" for="newTableName">新表格名</label>
-                <input type="text" id="newTableName" class="form-input" placeholder="请输入新的表格名称">
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="newTableName" class="form-input" placeholder="请输入新的表格名称" style="flex: 1;">
+                    <button id="aiRenameBtn" class="btn btn-secondary" onclick="generateAIName()" title="使用AI生成智能名称" style="white-space: nowrap; background: white; color: #374151; border: 1px solid #d1d5db;">
+                        AI生成
+                    </button>
+                </div>
+                <div id="aiRenameLoading" class="ai-loading" style="display: none;">
+                    <div class="ai-spinner"></div>
+                    <span>AI正在生成智能名称...</span>
+                </div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="hideRenameTableModal()">取消</button>

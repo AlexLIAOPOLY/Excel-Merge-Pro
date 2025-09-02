@@ -13,6 +13,7 @@ import hashlib
 from functools import lru_cache
 from contextlib import contextmanager
 from models.database import db, TableData, TableSchema, UploadHistory, TableGroup, ColumnMapping
+from models.deepseek_api import DeepSeekAPIClient
 
 class UniversalExcelProcessor:
     """通用Excel表格处理器，支持任意格式的表格合并和智能分组"""
@@ -791,21 +792,22 @@ class UniversalExcelProcessor:
                     print(f"[系统] 发现相同指纹的分组: {fingerprint_group.group_name}，直接使用")
                     return fingerprint_group
             
-                # 生成简洁的中文分组名
-                existing_count = 1
+                # 使用DeepSeek API生成智能表格名称
+                group_name = cls._generate_smart_table_name(cleaned_columns, filename)
+                
+                # 确保名称唯一
+                original_name = group_name
+                counter = 1
                 while True:
-                    chinese_num = cls._number_to_chinese(existing_count)
-                    group_name = f"合并表{chinese_num}"
-                    
-                    # 检查数据库中是否已存在
                     existing_group = TableGroup.query.filter_by(group_name=group_name).first()
                     if not existing_group:
                         break
-                    existing_count += 1
+                    counter += 1
+                    group_name = f"{original_name}_{counter}"
                     
                     # 避免无限循环
-                    if existing_count > 100:
-                        group_name = f"合并表{existing_count}_{int(time.time())}"
+                    if counter > 100:
+                        group_name = f"{original_name}_{int(time.time())}"
                         break
                 
                 # 创建分组
@@ -1043,6 +1045,71 @@ class UniversalExcelProcessor:
             db.session.rollback()
             print(f"[错误] 处理文件时出错: {str(e)}")
             return False, str(e), 0, None
+    
+    @classmethod
+    def _generate_smart_table_name(cls, columns, filename):
+        """使用DeepSeek API生成智能表格名称"""
+        print(f"[智能命名] 开始为表格生成智能名称，列数: {len(columns)}")
+        
+        try:
+            # 创建DeepSeek API客户端
+            api_client = DeepSeekAPIClient()
+            
+            # 调用API生成名称
+            success, table_name, message = api_client.generate_table_name(columns)
+            
+            if success and table_name:
+                print(f"[智能命名] DeepSeek API生成名称成功: {table_name}")
+                return table_name
+            else:
+                print(f"[智能命名] DeepSeek API生成失败: {message}")
+                return cls._generate_fallback_name(columns, filename)
+                
+        except Exception as e:
+            print(f"[智能命名] DeepSeek API调用异常: {str(e)}")
+            return cls._generate_fallback_name(columns, filename)
+    
+    @staticmethod
+    def _generate_fallback_name(columns, filename):
+        """生成后备表格名称"""
+        from datetime import datetime
+        
+        # 根据列名推断表格类型
+        name_keywords = {
+            '员工信息': ['员工', '姓名', '工号', '部门', '职位'],
+            '客户资料': ['客户', '公司', '联系人', '电话', '地址'],
+            '订单记录': ['订单', '商品', '数量', '金额', '价格'],
+            '库存管理': ['库存', '商品', '数量', '仓库', '入库'],
+            '财务报表': ['金额', '收入', '支出', '预算', '成本'],
+            '项目管理': ['项目', '进度', '负责人', '开始', '完成'],
+            '销售数据': ['销售', '业绩', '客户', '提成', '目标'],
+            '产品目录': ['产品', '型号', '价格', '规格', '品牌'],
+            '合同信息': ['合同', '签订', '甲方', '乙方', '金额'],
+            '学生成绩': ['学生', '成绩', '科目', '班级', '学号'],
+            '设备清单': ['设备', '型号', '序列号', '状态', '位置']
+        }
+        
+        # 检查列名中是否包含关键词
+        column_text = ''.join(columns).lower()
+        
+        for table_type, keywords in name_keywords.items():
+            if sum(1 for keyword in keywords if keyword in column_text) >= 2:
+                print(f"[智能命名] 根据列名推断为: {table_type}")
+                return table_type
+        
+        # 如果从文件名能推断出类型
+        if filename:
+            filename_lower = filename.lower()
+            for table_type, keywords in name_keywords.items():
+                if any(keyword in filename_lower for keyword in keywords):
+                    print(f"[智能命名] 根据文件名推断为: {table_type}")
+                    return table_type
+        
+        # 默认使用时间戳命名
+        current_time = datetime.now()
+        default_name = f"合并表_{current_time.strftime('%m%d_%H%M')}"
+        print(f"[智能命名] 使用默认命名: {default_name}")
+        return default_name
     
     @staticmethod
     def _number_to_chinese(num):

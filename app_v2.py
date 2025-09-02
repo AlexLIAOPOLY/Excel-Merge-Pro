@@ -2,6 +2,10 @@ from flask import Flask, render_template, request, jsonify, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
+from dotenv import load_dotenv
+
+# 加载.env文件中的环境变量
+load_dotenv()
 try:
     import pandas as pd
     HAS_PANDAS = True
@@ -12,6 +16,7 @@ except ImportError:
 import datetime as dt
 from models.database import db, TableData, TableSchema, UploadHistory
 from models.excel_processor import UniversalExcelProcessor
+from models.deepseek_api import DeepSeekAPIClient
 from config import config
 
 app = Flask(__name__)
@@ -1200,6 +1205,121 @@ def clear_all_data():
         db.session.rollback()
         print(f"[错误] 清空数据时出错: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
+
+# ==================== DeepSeek AI 智能命名 API ====================
+
+@app.route('/api/ai-rename-table', methods=['POST'])
+def ai_rename_table():
+    """使用DeepSeek API为表格生成智能名称"""
+    try:
+        from models.database import TableGroup
+        
+        data = request.get_json()
+        group_id = data.get('group_id')
+        
+        if not group_id:
+            return jsonify({'success': False, 'message': '表格分组ID不能为空'})
+        
+        # 获取表格分组
+        table_group = TableGroup.query.get(group_id)
+        if not table_group:
+            return jsonify({'success': False, 'message': '表格分组不存在'})
+        
+        print(f"[AI命名] 开始为表格分组 {table_group.group_name} 生成智能名称")
+        
+        # 获取表格的列名
+        schemas = TableSchema.query.filter_by(
+            table_group_id=group_id, 
+            is_active=True
+        ).order_by(TableSchema.column_order).all()
+        
+        if not schemas:
+            return jsonify({'success': False, 'message': '表格没有有效的列结构'})
+        
+        column_names = [s.column_name for s in schemas]
+        
+        # 获取一些样本数据帮助AI理解表格内容
+        sample_records = TableData.query.filter_by(table_group_id=group_id).limit(3).all()
+        sample_data = []
+        
+        for record in sample_records:
+            record_dict = record.to_dict()
+            # 只保留业务数据，排除系统字段
+            clean_dict = {k: v for k, v in record_dict.items() 
+                         if k not in ['id', 'source_file', 'created_at', 'updated_at', 'table_group_id']}
+            if clean_dict:
+                sample_data.append(clean_dict)
+        
+        # 调用DeepSeek API生成名称
+        api_client = DeepSeekAPIClient()
+        success, new_name, message = api_client.generate_table_name(column_names, sample_data)
+        
+        if success and new_name:
+            # 检查名称是否与现有名称重复
+            original_new_name = new_name
+            counter = 1
+            while True:
+                existing = TableGroup.query.filter(
+                    TableGroup.group_name == new_name,
+                    TableGroup.id != group_id
+                ).first()
+                
+                if not existing:
+                    break
+                    
+                counter += 1
+                new_name = f"{original_new_name}_{counter}"
+                
+                if counter > 100:  # 防止无限循环
+                    new_name = f"{original_new_name}_{int(dt.datetime.now().timestamp())}"
+                    break
+            
+            # 更新表格名称
+            old_name = table_group.group_name
+            table_group.group_name = new_name
+            db.session.commit()
+            
+            print(f"[AI命名] 表格重命名成功: {old_name} -> {new_name}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'AI智能重命名成功',
+                'old_name': old_name,
+                'new_name': new_name,
+                'ai_message': message
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'AI命名失败: {message}'
+            })
+            
+    except Exception as e:
+        print(f"[AI命名] 智能重命名出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
+
+@app.route('/api/test-deepseek-connection', methods=['GET'])
+def test_deepseek_connection():
+    """测试DeepSeek API连接"""
+    try:
+        api_client = DeepSeekAPIClient()
+        success, message = api_client.test_connection()
+        
+        return jsonify({
+            'success': success,
+            'message': message,
+            'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'连接测试失败: {str(e)}',
+            'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
 
 # ==================== 工作台 API ====================
 

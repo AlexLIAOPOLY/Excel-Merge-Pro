@@ -606,18 +606,13 @@ function bindWorkspaceCheckboxEvents() {
             updateFileSelectionCount();
         });
         
-        // 双击文件项快速选择并导入
+        // 双击文件项只选择，不自动导入
         fileItem.addEventListener('dblclick', (e) => {
             e.preventDefault();
             // 清空其他选择，只选择当前项
             checkboxes.forEach(cb => cb.checked = false);
             checkbox.checked = true;
             updateFileSelectionCount();
-            
-            // 延迟一点再导入，让用户看到选择效果
-            setTimeout(() => {
-                importSelectedFiles();
-            }, 100);
         });
     });
     
@@ -2488,9 +2483,8 @@ function updateTableSelector() {
         // 去掉时间戳等后缀，保留主要名称
         displayName = displayName.replace(/_\d{8}_\d{6}$/, '');
         
-        // 添加置信度显示
-        const confidencePercent = group.confidence_percent || 100;
-        displayName += ` (${group.record_count}条)--置信度：${confidencePercent}%`;
+        // 添加记录数显示
+        displayName += ` (${group.record_count}条)`;
         
         option.textContent = displayName;
         selector.appendChild(option);
@@ -2741,6 +2735,61 @@ async function renameTableConfirm() {
         }
     } catch (error) {
         addConsoleLog(`重命名表格时发生错误: ${error.message}`, 'error');
+    }
+}
+
+// AI生成表格名称
+async function generateAIName() {
+    if (!currentGroupId) {
+        addConsoleLog('请先选择一个表格', 'warning');
+        return;
+    }
+
+    const aiBtn = document.getElementById('aiRenameBtn');
+    const aiLoading = document.getElementById('aiRenameLoading');
+    const newNameInput = document.getElementById('newTableName');
+
+    // 显示加载状态
+    aiBtn.disabled = true;
+    aiBtn.textContent = '生成中...';
+    aiLoading.style.display = 'flex';
+
+    try {
+        addConsoleLog('正在使用DeepSeek AI生成智能表格名称...', 'info');
+        
+        const response = await fetch('/api/ai-rename-table', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                group_id: currentGroupId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // 将AI生成的名称填入输入框
+            newNameInput.value = result.new_name;
+            addConsoleLog(`AI成功生成表格名称: ${result.new_name}`, 'success');
+            
+            // 立即应用重命名并刷新表格列表
+            setTimeout(async () => {
+                await renameTableConfirm();
+                await loadTableList();
+            }, 500);
+        } else {
+            addConsoleLog(`AI生成名称失败: ${result.message}`, 'error');
+        }
+
+    } catch (error) {
+        addConsoleLog(`AI生成名称时发生错误: ${error.message}`, 'error');
+    } finally {
+        // 恢复按钮状态
+        aiBtn.disabled = false;
+        aiBtn.textContent = 'AI生成';
+        aiLoading.style.display = 'none';
     }
 }
 
