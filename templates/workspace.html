@@ -14,7 +14,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
-            background: #fafafa;
+            background: #f8f9fa;
             color: #333;
             line-height: 1.6;
             min-height: 100vh;
@@ -61,7 +61,7 @@
         }
 
         .nav-container {
-            max-width: 1200px;
+            max-width: 2000px;  /* 与其他页面保持一致，充分利用屏幕宽度 */
             margin: 0 auto;
             height: 100%;
             display: flex;
@@ -510,9 +510,9 @@
 
         /* 主容器 */
         .main-container {
-            max-width: 1600px;
+            max-width: 2000px;  /* 与其他页面保持一致，充分利用屏幕宽度 */
             margin: 0 auto;
-            padding: 20px 32px;
+            padding: 20px 24px;  /* 减少内边距，与其他页面一致 */
             min-height: calc(100vh - 72px);
         }
 
@@ -972,6 +972,17 @@
             font-size: 13px;
         }
 
+        /* 中等宽度屏幕优化 */
+        @media (max-width: 1400px) {
+            .main-container {
+                padding: 18px 20px;  /* 减少内边距，增加可用宽度 */
+            }
+            
+            .nav-container {
+                padding: 0 20px;
+            }
+        }
+        
         /* 响应式设计 */
         @media (max-width: 768px) {
             .navbar {
@@ -1035,7 +1046,11 @@
         /* 超宽屏优化 */
         @media (min-width: 1600px) {
             .nav-container {
-                padding: 0 48px;
+                padding: 0 32px;  /* 减少内边距，与其他页面保持一致 */
+            }
+            
+            .main-container {
+                padding: 20px 32px;  /* 超宽屏适当增加内边距 */
             }
             
             .navbar {
