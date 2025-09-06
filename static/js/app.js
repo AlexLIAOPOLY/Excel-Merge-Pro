@@ -3987,6 +3987,31 @@ const API_PRESETS = {
             { value: 'moonshot-v1-128k', label: 'Moonshot v1 128K (128K上下文)' }
         ]
     },
+    
+    ollama: {
+        url: 'http://localhost:11434',
+        model: 'gemma2',
+        name: 'Ollama',
+        models: [
+            { value: 'gemma2', label: 'Gemma 2 (通用模型)' },
+            { value: 'llama3.1', label: 'Llama 3.1 (Meta模型)' },
+            { value: 'llama3.2', label: 'Llama 3.2 (最新Meta模型)' },
+            { value: 'qwen2.5', label: 'Qwen 2.5 (阿里模型)' },
+            { value: 'mistral', label: 'Mistral (轻量模型)' },
+            { value: 'codellama', label: 'CodeLlama (代码专用)' },
+            { value: 'deepseek-coder', label: 'DeepSeek Coder (代码生成)' },
+            { value: 'starcoder2', label: 'StarCoder2 (代码理解)' }
+        ]
+    },
+    
+    none: {
+        url: '',
+        model: '',
+        name: '不使用LLM',
+        models: [
+            { value: 'none', label: '不使用AI模型（使用默认命名）' }
+        ]
+    },
 
     custom: {
         url: '',
@@ -4021,55 +4046,70 @@ function hideAPIConfigModal() {
 }
 
 // 加载当前API配置
-function loadAPIConfig() {
+async function loadAPIConfig() {
     try {
-        const savedConfig = localStorage.getItem('apiConfig');
-        if (savedConfig) {
-            const config = JSON.parse(savedConfig);
+        let config = null;
+        
+        // 首先尝试从后端加载配置
+        try {
+            const response = await fetch('/api/get-api-config');
+            const result = await response.json();
+            if (result.success && result.config) {
+                config = result.config;
+                console.log('从后端加载API配置成功');
+            }
+        } catch (error) {
+            console.log('后端配置加载失败，尝试从本地存储加载:', error.message);
+        }
+        
+        // 如果后端没有配置，从本地存储加载
+        if (!config) {
+            const savedConfig = localStorage.getItem('apiConfig');
+            if (savedConfig) {
+                config = JSON.parse(savedConfig);
+                console.log('从本地存储加载API配置');
+            }
+        }
+        
+        if (config) {
+            // 设置提供商（默认为none）
+            document.getElementById('apiProvider').value = config.provider || 'none';
             
-            // 先设置提供商，这会触发模型选项的更新
-            document.getElementById('apiProvider').value = config.provider || 'deepseek';
-            
-            // 更新提供商配置（包括模型选项）
+            // 更新提供商配置（包括字段可见性和模型选项）
             updateAPIProviderConfig();
             
-            // 然后设置其他配置
-            document.getElementById('apiUrl').value = config.url || 'https://api.deepseek.com';
+            // 设置其他配置
+            document.getElementById('apiUrl').value = config.url || '';
             document.getElementById('apiKey').value = config.key || '';
             
-            // 最后设置模型（确保模型选项已经加载）
-            setTimeout(() => {
-                const modelElement = document.getElementById('apiModel');
-                if (modelElement) {
-                    modelElement.value = config.model || 'deepseek-chat';
-                    
-                    // 如果是自定义配置且模型不在预设列表中，切换到文本输入模式
-                    if (config.provider === 'custom') {
-                        const preset = API_PRESETS[config.provider];
-                        const hasPresetModel = preset && preset.models && 
-                                              preset.models.some(m => m.value === config.model);
-                        
-                        if (!hasPresetModel && config.model) {
-                            // 模型不在预设中，切换到文本输入模式
-                            updateCustomModelInput();
-                            // 重新设置值
-                            setTimeout(() => {
-                                const newModelElement = document.getElementById('apiModel');
-                                if (newModelElement) {
-                                    newModelElement.value = config.model;
-                                }
-                            }, 10);
+            // 如果有完整的配置信息，尝试获取可用模型
+            if (config.provider && config.provider !== 'none' && config.url && config.key) {
+                setTimeout(() => {
+                    fetchAvailableModels().then(() => {
+                        // 获取模型后设置保存的模型值
+                        const modelElement = document.getElementById('apiModel');
+                        if (modelElement && config.model) {
+                            modelElement.value = config.model;
                         }
-                    }
+                    });
+                }, 100);
+            } else if (config.provider === 'none') {
+                // 非LLM模式，直接隐藏模型字段
+                const modelFieldGroup = document.getElementById('modelFieldGroup');
+                if (modelFieldGroup) {
+                    modelFieldGroup.style.display = 'none';
                 }
-            }, 50); // 短暂延迟确保DOM更新完成
+            }
             
         } else {
-            // 使用默认配置
+            // 使用默认配置（非LLM模式）
+            document.getElementById('apiProvider').value = 'none';
             updateAPIProviderConfig();
         }
     } catch (error) {
         console.error('加载API配置失败:', error);
+        // 出错时使用默认配置
+        document.getElementById('apiProvider').value = 'none';
         updateAPIProviderConfig();
     }
 }
@@ -4112,6 +4152,39 @@ function updateAPIProviderConfig() {
             // 为自定义配置添加手动输入功能
             updateCustomModelInput();
         }
+    }
+    
+    // 根据提供商类型控制字段显示
+    const urlField = document.querySelector('label[for="apiUrl"]').parentElement;
+    const keyField = document.querySelector('label[for="apiKey"]').parentElement;
+    const modelFieldGroup = document.getElementById('modelFieldGroup');
+    
+    if (provider === 'none') {
+        // 非LLM模式：隐藏所有配置字段
+        urlField.style.display = 'none';
+        keyField.style.display = 'none';
+        modelFieldGroup.style.display = 'none';
+    } else if (provider === 'ollama') {
+        // Ollama模式：显示URL字段，隐藏Key字段（本地服务无需API Key）
+        urlField.style.display = 'block';
+        keyField.style.display = 'none';
+        modelFieldGroup.style.display = 'none'; // 先隐藏，等URL填写后再显示
+        
+        // 清空API Key字段
+        document.getElementById('apiKey').value = '';
+        
+        // 清空模型选择框
+        const modelSelect = document.getElementById('apiModel');
+        modelSelect.innerHTML = '<option value="">请先填写Ollama服务地址</option>';
+    } else {
+        // 其他提供商：显示URL和Key字段，但模型字段先隐藏
+        urlField.style.display = 'block';
+        keyField.style.display = 'block';
+        modelFieldGroup.style.display = 'none'; // 先隐藏，等API Key填写后再显示
+        
+        // 清空模型选择框
+        const modelSelect = document.getElementById('apiModel');
+        modelSelect.innerHTML = '<option value="">请先填写API配置信息</option>';
     }
     
     // 清空测试结果
@@ -4205,11 +4278,25 @@ async function testAPIConnection() {
     console.log('testResult element:', testResult);
     console.log('API config:', { provider, url: url ? 'set' : 'empty', key: key ? 'set' : 'empty', model });
     
-    if (!url || !key) {
-        testResult.className = 'api-test-result error';
-        testResult.textContent = '请输入API地址和API Key';
-        testResult.style.display = 'block'; // 强制显示
-        return;
+    // 根据提供商验证必要字段
+    if (provider !== 'none') {
+        if (provider === 'ollama') {
+            // Ollama只需要URL
+            if (!url) {
+                testResult.className = 'api-test-result error';
+                testResult.textContent = '请输入Ollama服务地址（如：http://localhost:11434）';
+                testResult.style.display = 'block';
+                return;
+            }
+        } else {
+            // 其他提供商需要URL和Key
+            if (!url || !key) {
+                testResult.className = 'api-test-result error';
+                testResult.textContent = '请输入API地址和API Key';
+                testResult.style.display = 'block';
+                return;
+            }
+        }
     }
     
     testResult.className = 'api-test-result loading';
@@ -4250,32 +4337,68 @@ async function testAPIConnection() {
 }
 
 // 保存API配置
-function saveAPIConfig() {
+async function saveAPIConfig() {
     const provider = document.getElementById('apiProvider').value;
     const url = document.getElementById('apiUrl').value;
     const key = document.getElementById('apiKey').value;
     const model = document.getElementById('apiModel').value;
     
-    if (!url || !key || !model) {
-        showNotification('配置不完整', '请填写完整的API配置信息', 'error');
-        return;
+    // 根据提供商验证配置完整性
+    if (provider !== 'none') {
+        if (provider === 'ollama') {
+            // Ollama只需要URL和模型
+            if (!url || !model) {
+                showNotification('配置不完整', '请填写Ollama服务地址和选择模型', 'error');
+                return;
+            }
+        } else {
+            // 其他提供商需要URL、Key和模型
+            if (!url || !key || !model) {
+                showNotification('配置不完整', '请填写完整的API配置信息', 'error');
+                return;
+            }
+        }
     }
     
     const config = {
         provider: provider,
-        url: url,
-        key: key,
-        model: model,
-        updated: new Date().toISOString()
+        url: provider === 'none' ? '' : url,
+        key: provider === 'none' ? '' : key,
+        model: provider === 'none' ? 'none' : model
     };
     
     try {
-        localStorage.setItem('apiConfig', JSON.stringify(config));
-        showNotification('配置保存成功', 'API配置已保存到本地', 'success');
+        // 保存到本地存储
+        localStorage.setItem('apiConfig', JSON.stringify({
+            ...config,
+            updated: new Date().toISOString()
+        }));
+        
+        // 同时保存到后端
+        const response = await fetch('/api/save-api-config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(config)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('配置保存成功', 'API配置已保存', 'success');
+            hideAPIConfigModal();
+            addConsoleLog(`API配置已更新: ${API_PRESETS[provider]?.name || provider}`, 'system');
+        } else {
+            throw new Error(result.error || '后端保存失败');
+        }
+        
+    } catch (error) {
+        console.error('保存配置失败:', error);
+        // 即使后端保存失败，本地存储仍然可用
+        showNotification('配置保存', '配置已保存到本地（后端同步可能失败）', 'warning');
         hideAPIConfigModal();
         addConsoleLog(`API配置已更新: ${API_PRESETS[provider]?.name || provider}`, 'system');
-    } catch (error) {
-        showNotification('保存失败', '配置保存失败：' + error.message, 'error');
     }
 }
 
@@ -4297,13 +4420,135 @@ document.addEventListener('DOMContentLoaded', function() {
     const savedConfig = localStorage.getItem('apiConfig');
     if (!savedConfig) {
         const defaultConfig = {
-            provider: 'deepseek',
-            url: 'https://api.deepseek.com',
-            key: '', // 需要用户自行设置
-            model: 'deepseek-chat',
+            provider: 'none',
+            url: '',
+            key: '',
+            model: 'none',
             updated: new Date().toISOString()
         };
         localStorage.setItem('apiConfig', JSON.stringify(defaultConfig));
-        console.log('已设置默认API配置：DeepSeek');
+        console.log('已设置默认API配置：非LLM模式');
     }
+    
+    // 设置API Key输入监听器
+    setupAPIKeyListeners();
 });
+
+// 获取可用模型列表
+async function fetchAvailableModels() {
+    const provider = document.getElementById('apiProvider').value;
+    const url = document.getElementById('apiUrl').value;
+    const key = document.getElementById('apiKey').value;
+    
+    const modelFieldGroup = document.getElementById('modelFieldGroup');
+    const modelSelect = document.getElementById('apiModel');
+    const loadingIndicator = document.getElementById('modelLoadingIndicator');
+    
+    // 如果是非LLM提供商，直接返回
+    if (provider === 'none') {
+        modelFieldGroup.style.display = 'none';
+        return;
+    }
+    
+    // 根据不同提供商检查必要信息
+    let hasRequiredInfo = false;
+    if (provider === 'ollama') {
+        // Ollama只需要URL，不需要API Key
+        hasRequiredInfo = !!url;
+    } else {
+        // 其他提供商需要URL和Key
+        hasRequiredInfo = !!(url && key);
+    }
+    
+    if (!hasRequiredInfo) {
+        modelFieldGroup.style.display = 'none';
+        return;
+    }
+    
+    // 显示模型字段和加载指示器
+    modelFieldGroup.style.display = 'block';
+    loadingIndicator.style.display = 'block';
+    modelSelect.innerHTML = '<option value="">正在获取模型列表...</option>';
+    
+    try {
+        const response = await fetch('/api/get-available-models', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                provider: provider,
+                url: url,
+                key: key,
+                model: ''
+            })
+        });
+        
+        const result = await response.json();
+        
+        // 隐藏加载指示器
+        loadingIndicator.style.display = 'none';
+        
+        if (result.success && result.models && result.models.length > 0) {
+            // 清空并填充模型选项
+            modelSelect.innerHTML = '';
+            
+            result.models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.value;
+                option.textContent = model.label;
+                modelSelect.appendChild(option);
+            });
+            
+            // 选择第一个模型作为默认值
+            if (result.models.length > 0) {
+                modelSelect.value = result.models[0].value;
+            }
+            
+            console.log(`成功获取 ${result.models.length} 个模型: ${result.message}`);
+        } else {
+            modelSelect.innerHTML = '<option value="">获取模型失败，请手动输入</option>';
+            console.error('获取模型失败:', result.message);
+        }
+        
+    } catch (error) {
+        loadingIndicator.style.display = 'none';
+        modelSelect.innerHTML = '<option value="">获取模型失败，请手动输入</option>';
+        console.error('获取模型列表时出错:', error);
+    }
+}
+
+// 设置API Key输入监听器
+function setupAPIKeyListeners() {
+    const urlField = document.getElementById('apiUrl');
+    const keyField = document.getElementById('apiKey');
+    const providerField = document.getElementById('apiProvider');
+    
+    let fetchTimeout;
+    
+    // 防抖函数，避免频繁请求
+    function debouncedFetch() {
+        clearTimeout(fetchTimeout);
+        fetchTimeout = setTimeout(() => {
+            fetchAvailableModels();
+        }, 1000); // 1秒延迟
+    }
+    
+    // 监听输入变化
+    if (urlField) {
+        urlField.addEventListener('input', debouncedFetch);
+        urlField.addEventListener('blur', fetchAvailableModels);
+    }
+    
+    if (keyField) {
+        keyField.addEventListener('input', debouncedFetch);
+        keyField.addEventListener('blur', fetchAvailableModels);
+    }
+    
+    if (providerField) {
+        providerField.addEventListener('change', () => {
+            // 提供商变化时立即检查是否需要获取模型
+            setTimeout(fetchAvailableModels, 100);
+        });
+    }
+}

@@ -253,6 +253,59 @@ class DeepSeekAPIClient:
             print(f"[DeepSeek API] 连接测试异常: {error_msg}")
             return False, f"连接测试失败: {error_msg}"
 
+    def get_available_models(self):
+        """获取可用模型列表"""
+        try:
+            if not self.api_key:
+                return False, [], "API密钥未配置"
+            
+            # DeepSeek的模型列表API端点（如果支持）
+            models_url = self.base_url.replace('/chat/completions', '/models')
+            
+            headers = {
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            try:
+                response = requests.get(models_url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'data' in data:
+                        models = []
+                        for model in data['data']:
+                            model_id = model.get('id', '')
+                            if model_id and 'deepseek' in model_id.lower():
+                                models.append({
+                                    'value': model_id,
+                                    'label': f"{model_id}"
+                                })
+                        if models:
+                            print(f"[DeepSeek API] 从API获取到 {len(models)} 个模型")
+                            return True, models, "获取模型列表成功"
+            except:
+                pass  # 如果API不支持，继续使用默认列表
+            
+            # 返回默认的DeepSeek模型列表
+            default_models = [
+                {'value': 'deepseek-chat', 'label': 'deepseek-chat (通用对话模型)'},
+                {'value': 'deepseek-coder', 'label': 'deepseek-coder (代码专用模型)'},
+                {'value': 'deepseek-reasoner', 'label': 'deepseek-reasoner (推理增强模型)'}
+            ]
+            print("[DeepSeek API] 使用默认模型列表")
+            return True, default_models, "使用默认模型列表"
+                
+        except Exception as e:
+            print(f"[DeepSeek API] 获取模型列表失败: {str(e)}")
+            # 出错时返回默认模型列表
+            default_models = [
+                {'value': 'deepseek-chat', 'label': 'deepseek-chat (通用对话模型)'},
+                {'value': 'deepseek-coder', 'label': 'deepseek-coder (代码专用模型)'},
+                {'value': 'deepseek-reasoner', 'label': 'deepseek-reasoner (推理增强模型)'}
+            ]
+            return False, default_models, f"获取失败: {str(e)}"
+
 
 def generate_smart_table_name(column_names, sample_data=None, api_key=None):
     """

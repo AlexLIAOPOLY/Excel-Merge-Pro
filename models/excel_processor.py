@@ -14,6 +14,8 @@ from functools import lru_cache
 from contextlib import contextmanager
 from models.database import db, TableData, TableSchema, UploadHistory, TableGroup, ColumnMapping
 from models.deepseek_api import DeepSeekAPIClient
+from models.api_manager import APIManager, NonLLMNameGenerator
+from models.config_storage import get_api_config
 
 class UniversalExcelProcessor:
     """通用Excel表格处理器，支持任意格式的表格合并和智能分组"""
@@ -792,16 +794,41 @@ class UniversalExcelProcessor:
                     print(f"[系统] 发现相同指纹的分组: {fingerprint_group.group_name}，直接使用")
                     return fingerprint_group
             
-                # 使用DeepSeek API生成智能表格名称
+                # 使用API管理器生成智能表格名称
                 group_name = cls._generate_smart_table_name(cleaned_columns, filename)
-                
+
                 # 确保名称唯一
                 original_name = group_name
                 counter = 1
+                import re
+                merge_table_pattern = re.compile(r'^合并表(\d+)$')
                 while True:
                     existing_group = TableGroup.query.filter_by(group_name=group_name).first()
                     if not existing_group:
                         break
+
+                    # 若是“合并表N”样式，则改为寻找下一个未使用的“合并表<number>”
+                    m = merge_table_pattern.match(original_name)
+                    if m:
+                        try:
+                            # 收集所有已存在的“合并表<number>”序号
+                            all_names = [g.group_name for g in TableGroup.query.all() if g.group_name]
+                            used = set()
+                            for nm in all_names:
+                                mm = merge_table_pattern.match(nm.strip())
+                                if mm:
+                                    used.add(int(mm.group(1)))
+                            next_num = 1
+                            while next_num in used:
+                                next_num += 1
+                            group_name = f"合并表{next_num}"
+                            # 循环继续校验唯一性
+                            continue
+                        except Exception:
+                            # 回退到下划线方式
+                            pass
+
+                    # 默认回退：原名加 _序号
                     counter += 1
                     group_name = f"{original_name}_{counter}"
                     
@@ -1048,30 +1075,42 @@ class UniversalExcelProcessor:
     
     @classmethod
     def _generate_smart_table_name(cls, columns, filename):
-        """使用DeepSeek API生成智能表格名称"""
+        """使用配置的API提供商生成智能表格名称"""
         print(f"[智能命名] 开始为表格生成智能名称，列数: {len(columns)}")
         
         try:
-            # 创建DeepSeek API客户端
-            api_client = DeepSeekAPIClient()
+            # 获取API配置（从某种配置存储中读取）
+            api_config = cls._get_api_config()
+            
+            # 创建API管理器
+            api_manager = APIManager(api_config)
             
             # 调用API生成名称
-            success, table_name, message = api_client.generate_table_name(columns)
+            success, table_name, message = api_manager.generate_table_name(columns, filename=filename)
             
             if success and table_name:
-                print(f"[智能命名] DeepSeek API生成名称成功: {table_name}")
+                print(f"[智能命名] API生成名称成功: {table_name}")
                 return table_name
             else:
-                print(f"[智能命名] DeepSeek API生成失败: {message}")
+                print(f"[智能命名] API生成失败: {message}")
                 return cls._generate_fallback_name(columns, filename)
                 
         except Exception as e:
-            print(f"[智能命名] DeepSeek API调用异常: {str(e)}")
+            print(f"[智能命名] API调用异常: {str(e)}")
             return cls._generate_fallback_name(columns, filename)
+    
+    @classmethod
+    def _get_api_config(cls):
+        """获取API配置"""
+        return get_api_config()
     
     @staticmethod
     def _generate_fallback_name(columns, filename):
-        """生成后备表格名称"""
+        """生成后备表格名称
+
+        优先根据列/文件关键词推断，否则采用“合并表<number>”连续编号，
+        避免出现下划线序号形式。
+        """
         from datetime import datetime
         
         # 根据列名推断表格类型
@@ -1105,9 +1144,29 @@ class UniversalExcelProcessor:
                     print(f"[智能命名] 根据文件名推断为: {table_type}")
                     return table_type
         
-        # 默认使用时间戳命名
-        current_time = datetime.now()
-        default_name = f"合并表_{current_time.strftime('%m%d_%H%M')}"
+        # 默认使用“合并表<number>”编号
+        try:
+            from models.database import TableGroup
+            import re
+            existing_names = [g.group_name for g in TableGroup.query.all() if g.group_name]
+            pattern = re.compile(r'^合并表(\d+)$')
+            used_numbers = set()
+            for name in existing_names:
+                m = pattern.match(name.strip())
+                if m:
+                    try:
+                        used_numbers.add(int(m.group(1)))
+                    except ValueError:
+                        continue
+            next_num = 1
+            while next_num in used_numbers:
+                next_num += 1
+            default_name = f"合并表{next_num}"
+        except Exception:
+            # 兜底到时间戳命名，确保不失败
+            current_time = datetime.now()
+            default_name = f"合并表_{current_time.strftime('%m%d_%H%M')}"
+
         print(f"[智能命名] 使用默认命名: {default_name}")
         return default_name
     

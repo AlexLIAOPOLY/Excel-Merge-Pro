@@ -19,6 +19,8 @@ import datetime as dt
 from models.database import db, TableData, TableSchema, UploadHistory
 from models.excel_processor import UniversalExcelProcessor
 from models.deepseek_api import DeepSeekAPIClient
+from models.api_manager import APIManager
+from models.config_storage import get_config_storage
 from config import config
 
 app = Flask(__name__)
@@ -1231,7 +1233,7 @@ def clear_all_data():
 
 @app.route('/api/ai-rename-table', methods=['POST'])
 def ai_rename_table():
-    """使用DeepSeek API为表格生成智能名称"""
+    """使用配置的AI提供商为表格生成智能名称"""
     try:
         from models.database import TableGroup
         
@@ -1271,9 +1273,11 @@ def ai_rename_table():
             if clean_dict:
                 sample_data.append(clean_dict)
         
-        # 调用DeepSeek API生成名称
-        api_client = DeepSeekAPIClient()
-        success, new_name, message = api_client.generate_table_name(column_names, sample_data)
+        # 使用API管理器生成名称（需要从前端获取API配置）
+        # 临时使用默认配置，实际应该从前端传递配置或从存储中读取
+        api_config = data.get('api_config', {'provider': 'none'})
+        api_manager = APIManager(api_config)
+        success, new_name, message = api_manager.generate_table_name(column_names, sample_data)
         
         if success and new_name:
             # 检查名称是否与现有名称重复
@@ -1353,41 +1357,39 @@ def test_api_connection():
         
         print(f"[API测试] 提供商: {provider}, URL: {url}, 模型: {model}")
         
-        if not url or not key:
-            return jsonify({
-                'success': False,
-                'error': 'API地址和API Key不能为空'
-            })
-        
-        # 目前主要支持DeepSeek API测试
-        if provider == 'deepseek':
-            try:
-                # 使用自定义配置创建DeepSeek客户端
-                os.environ['DEEPSEEK_API_KEY'] = key  # 临时设置环境变量
-                api_client = DeepSeekAPIClient(api_key=key)
-                api_client.base_url = url if url.endswith('/v1/chat/completions') else f"{url}/v1/chat/completions"
-                api_client.model = model
-                
-                success, message = api_client.test_connection()
-                
-                return jsonify({
-                    'success': success,
-                    'message': message if success else f'测试失败: {message}',
-                    'provider': provider,
-                    'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                })
-                
-            except Exception as e:
-                return jsonify({
-                    'success': False,
-                    'error': f'DeepSeek API测试失败: {str(e)}',
-                    'provider': provider
-                })
-        else:
-            # 对于其他API提供商，返回简单的响应
+        # 对于非LLM提供商，直接返回成功
+        if provider == 'none':
             return jsonify({
                 'success': True,
-                'message': f'{provider} API配置已保存（暂不支持连接测试）',
+                'message': '非LLM模式已启用，将使用默认命名规则（合并表1、合并表2...）',
+                'provider': provider,
+                'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
+        
+        # 创建API配置
+        api_config = {
+            'provider': provider,
+            'url': url,
+            'key': key,
+            'model': model
+        }
+        
+        try:
+            # 使用统一的API管理器进行测试
+            api_manager = APIManager(api_config)
+            success, message = api_manager.test_connection()
+            
+            return jsonify({
+                'success': success,
+                'message': message if success else f'测试失败: {message}',
+                'provider': provider,
+                'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f'{provider} API测试失败: {str(e)}',
                 'provider': provider,
                 'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             })
@@ -1397,6 +1399,106 @@ def test_api_connection():
         return jsonify({
             'success': False,
             'error': f'测试过程中出错: {str(e)}'
+        })
+
+
+@app.route('/api/save-api-config', methods=['POST'])
+def save_api_config():
+    """保存API配置到后端存储"""
+    try:
+        data = request.get_json()
+        provider = data.get('provider', 'none')
+        url = data.get('url', '')
+        key = data.get('key', '')
+        model = data.get('model', '')
+        
+        # 获取配置存储实例
+        config_storage = get_config_storage()
+        
+        # 保存配置
+        config_storage.set_api_config(provider, url, key, model)
+        
+        return jsonify({
+            'success': True,
+            'message': f'{provider} 配置已保存',
+            'provider': provider,
+            'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        print(f"[配置保存错误] {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'配置保存失败: {str(e)}'
+        })
+
+
+@app.route('/api/get-api-config', methods=['GET'])
+def get_api_config_endpoint():
+    """获取当前API配置"""
+    try:
+        # 获取配置存储实例
+        config_storage = get_config_storage()
+        config = config_storage.get_api_config()
+        
+        return jsonify({
+            'success': True,
+            'config': config
+        })
+        
+    except Exception as e:
+        print(f"[配置获取错误] {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'配置获取失败: {str(e)}',
+            'config': {
+                'provider': 'none',
+                'url': '',
+                'key': '',
+                'model': 'none'
+            }
+        })
+
+
+@app.route('/api/get-available-models', methods=['POST'])
+def get_available_models():
+    """获取指定提供商的可用模型列表"""
+    try:
+        data = request.get_json()
+        provider = data.get('provider', 'none')
+        url = data.get('url', '')
+        key = data.get('key', '')
+        model = data.get('model', '')
+        
+        print(f"[获取模型] 提供商: {provider}, URL: {url}")
+        
+        # 创建API配置
+        api_config = {
+            'provider': provider,
+            'url': url,
+            'key': key,
+            'model': model
+        }
+        
+        # 使用API管理器获取模型列表
+        api_manager = APIManager(api_config)
+        success, models, message = api_manager.get_available_models()
+        
+        return jsonify({
+            'success': success,
+            'models': models,
+            'message': message,
+            'provider': provider,
+            'timestamp': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        print(f"[获取模型错误] {str(e)}")
+        return jsonify({
+            'success': False,
+            'models': [],
+            'message': f'获取模型列表失败: {str(e)}',
+            'provider': data.get('provider', 'unknown') if 'data' in locals() else 'unknown'
         })
 
 
